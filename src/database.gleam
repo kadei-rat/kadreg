@@ -22,7 +22,7 @@ pub fn connect(config: config.Config) -> Result(pog.Connection, String) {
       trace: False,
       ip_version: pog.Ipv4,
       pool_name: pool_name,
-      rows_as_map: False,
+      rows_as_map: True,
     )
 
   case pog.start(db_config) {

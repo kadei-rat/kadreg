@@ -11,10 +11,7 @@
 Set DB_HOST (defaults to localhost), DB_PORT (defaults to 5432), DB_USER, and
 DB_PASSWORD environment variables as needed to allow kadreg to access your postgres instance.
 
-Create a db called `kadreg`:
-```sh
-sudo -u postgres createdb kadreg
-```
+Run `./bin/setup-db.sh` to create the database and run migrations.
 
 ### Running & testing
 
@@ -23,3 +20,8 @@ gleam run   # Run the project
 gleam test  # Run the tests
 ```
 
+### Database helpers
+
+- `./bin/setup-db.sh` - creates dev and test databases and runs migrations on both
+- `./bin/teardown-db.sh` - drops both databases
+- `./bin/reset-db.sh` - drops, creates, and migrates dev and test databases
