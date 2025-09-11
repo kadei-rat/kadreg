@@ -13,7 +13,7 @@ pub fn create_member_handler(req: Request, db: pog.Connection) -> Response {
 
   members.decode_create_member_request(body)
   |> result.try(members.create(db, _))
-  |> result.map(members.encode)
+  |> result.map(members.to_json)
   |> result.map(json.to_string_tree)
   |> result.map(wisp.json_response(_, 201))
   |> result.map_error(fn(err) { json_error_response(err, 400) })
@@ -28,7 +28,7 @@ pub fn get_member_handler(
 ) -> Response {
   membership_id.parse(membership_id_str)
   |> result.try(members.get(db, _))
-  |> result.map(members.encode)
+  |> result.map(members.to_json)
   |> result.map(json.to_string_tree)
   |> result.map(wisp.json_response(_, 200))
   |> result.map_error(fn(err) { json_error_response(err, 400) })
@@ -38,7 +38,7 @@ pub fn get_member_handler(
 // GET /members (List all members)
 pub fn list_members_handler(_req: Request, db: pog.Connection) -> Response {
   members.list(db)
-  |> result.map(json.array(_, members.encode))
+  |> result.map(json.array(_, members.to_json))
   |> result.map(json.to_string_tree)
   |> result.map(wisp.json_response(_, 200))
   |> result.map_error(fn(err) { json_error_response(err, 400) })
