@@ -1,24 +1,25 @@
 # kadreg
 
-[![Package Version](https://img.shields.io/hexpm/v/kadreg)](https://hex.pm/packages/kadreg)
-[![Hex Docs](https://img.shields.io/badge/hex-docs-ffaff3)](https://hexdocs.pm/kadreg/)
+### Prerequisites
 
+- [Erlang](https://www.erlang.org/downloads), the version specified in `.tool-versions`
+- [Gleam](https://gleam.run/getting-started/installation/), the version specified in `.tool-versions`
+- [PostgreSQL](https://www.postgresql.org/download/), at least version 10.
+
+### First time setup
+
+Set DB_HOST (defaults to localhost), DB_PORT (defaults to 5432), DB_USER, and
+DB_PASSWORD environment variables as needed to allow kadreg to access your postgres instance.
+
+Create a db called `kadreg`:
 ```sh
-gleam add kadreg@1
-```
-```gleam
-import kadreg
-
-pub fn main() -> Nil {
-  // TODO: An example of the project in use
-}
+sudo -u postgres createdb kadreg
 ```
 
-Further documentation can be found at <https://hexdocs.pm/kadreg>.
-
-## Development
+### Running & testing
 
 ```sh
 gleam run   # Run the project
 gleam test  # Run the tests
 ```
+
