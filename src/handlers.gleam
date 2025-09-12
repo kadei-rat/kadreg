@@ -1,9 +1,11 @@
+import authorization
 import gleam/dynamic.{type Dynamic}
 import gleam/dynamic/decode
 import gleam/json
 import gleam/result
 import models/members
 import models/membership_id
+import models/role
 import pog
 import session
 import utils
@@ -13,9 +15,14 @@ import wisp.{type Request, type Response}
 
 // POST /members (Create a new member)
 pub fn create_member_handler(req: Request, db: pog.Connection) -> Response {
+  use session_data <- session.require_session(req)
   use body <- wisp.require_json(req)
 
   members.decode_create_member_request(body)
+  |> result.try(fn(create_req) {
+    authorization.can_create_members(session_data)
+    |> result.replace(create_req)
+  })
   |> result.try(members.create(db, _))
   |> result.map(members.to_json)
   |> result.map(json.to_string_tree)
@@ -26,11 +33,17 @@ pub fn create_member_handler(req: Request, db: pog.Connection) -> Response {
 
 // GET /members/<membership_id> (Get a specific member)
 pub fn get_member_handler(
-  _req: Request,
+  req: Request,
   db: pog.Connection,
   membership_id_str: String,
 ) -> Response {
+  use session_data <- session.require_session(req)
+
   membership_id.parse(membership_id_str)
+  |> result.try(fn(target_id) {
+    authorization.can_manage_member_details(session_data, target_id)
+    |> result.replace(target_id)
+  })
   |> result.try(members.get(db, _))
   |> result.map(members.to_json)
   |> result.map(json.to_string_tree)
@@ -40,8 +53,11 @@ pub fn get_member_handler(
 }
 
 // GET /members (List all members)
-pub fn list_members_handler(_req: Request, db: pog.Connection) -> Response {
-  members.list(db)
+pub fn list_members_handler(req: Request, db: pog.Connection) -> Response {
+  use session_data <- session.require_session(req)
+
+  authorization.can_list_members(session_data)
+  |> result.try(fn(_) { members.list(db) })
   |> result.map(json.array(_, members.to_json))
   |> result.map(json.to_string_tree)
   |> result.map(wisp.json_response(_, 200))
@@ -60,14 +76,20 @@ pub fn update_member_handler(req: Request, _db: pog.Connection) -> Response {
 
 // POST /members/<membership_id>/delete (Delete a member)
 pub fn delete_member_handler(
-  _req: Request,
+  req: Request,
   db: pog.Connection,
   membership_id_str: String,
 ) -> Response {
+  use session_data <- session.require_session(req)
+
   // For now, default to not purging PII. (in future need to be optional, in req body or param)
   let purge_pii = False
 
   membership_id.parse(membership_id_str)
+  |> result.try(fn(target_id) {
+    authorization.can_manage_member_details(session_data, target_id)
+    |> result.replace(target_id)
+  })
   |> result.try(members.delete(db, _, purge_pii))
   |> result.map(fn(_) { wisp.ok() })
   |> result.map_error(fn(err) { json_error_response(err, 400) })
@@ -83,7 +105,10 @@ pub fn login_handler(req: Request, db: pog.Connection) -> Response {
     members.authenticate(db, data.email_address, data.password)
   })
   |> result.map(fn(member) {
-    session.create_session(wisp.ok(), req, member.membership_id)
+    let success_json =
+      json.object([#("message", json.string("Login successful"))])
+    wisp.json_response(json.to_string_tree(success_json), 200)
+    |> session.create_session(req, member.membership_id, member.role)
   })
   |> result.map_error(fn(err) { json_error_response(err, 401) })
   |> result.unwrap_both
@@ -100,10 +125,15 @@ pub fn logout_handler(req: Request, _db: pog.Connection) -> Response {
 // GET /auth/me (Get current session info)
 pub fn me_handler(req: Request, _db: pog.Connection) -> Response {
   case session.get_session(req) {
-    Ok(membership_id) -> {
-      let user_json = json.object([
-        #("membership_id", json.string(membership_id.to_string(membership_id)))
-      ])
+    Ok(session_data) -> {
+      let user_json =
+        json.object([
+          #(
+            "membership_id",
+            json.string(membership_id.to_string(session_data.membership_id)),
+          ),
+          #("role", json.string(role.to_string(session_data.role))),
+        ])
       wisp.json_response(json.to_string_tree(user_json), 200)
     }
     Error(_) -> json_error_response("No active session", 401)

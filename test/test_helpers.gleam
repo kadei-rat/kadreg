@@ -3,8 +3,11 @@ import database
 import gleam/option
 import gleam/result
 import models/members
+import models/membership_id
 import models/role
 import pog
+import wisp
+import wisp/testing
 
 pub fn setup_test_db() -> Result(pog.Connection, String) {
   let config = config.load()
@@ -64,4 +67,13 @@ pub fn create_test_member_with_details(
       role: option.Some(member_role),
     )
   members.create(conn, request)
+}
+
+pub fn set_session_cookie(
+  request: wisp.Request,
+  member: members.MemberRecord,
+) -> wisp.Request {
+  let session_value =
+    membership_id.to_string(member.membership_id) <> ":" <> role.to_string(member.role)
+  testing.set_cookie(request, "kadreg_session", session_value, wisp.Signed)
 }

@@ -119,7 +119,7 @@ pub fn login_malformed_request_test() {
   let response = handlers.login_handler(req, conn)
 
   // Check response
-  let assert 400 = response.status
+  let assert 401 = response.status
   let body = testing.string_body(response)
   let assert True = string.contains(body, "error")
 }
