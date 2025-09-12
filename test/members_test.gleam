@@ -17,6 +17,7 @@ pub fn encode_member_test() {
       handle: "janedoe",
       postal_address: "123 Main St",
       phone_number: "555-1234",
+      password_hash: "hashed_password",
       role: role.Member,
       created_at: "2021-12-31T20:00:00Z",
       updated_at: "2021-12-31T20:00:00Z",
@@ -34,6 +35,8 @@ pub fn encode_member_test() {
   let assert True = string.contains(encoded_str, "\"legal_name\":\"Jane Doe\"")
   let assert True = string.contains(encoded_str, "\"role\":\"Member\"")
   let assert True = string.contains(encoded_str, "\"deleted_at\":null")
+  // Ensure password_hash is NOT included in JSON
+  let assert False = string.contains(encoded_str, "password_hash")
 }
 
 pub fn decode_create_member_request_test() {

@@ -1,3 +1,4 @@
+import argus
 import gleam/dynamic.{type Dynamic}
 import gleam/dynamic/decode
 import gleam/json
@@ -21,6 +22,7 @@ pub type MemberRecord {
     handle: String,
     postal_address: String,
     phone_number: String,
+    password_hash: String,
     role: Role,
     created_at: String,
     updated_at: String,
@@ -51,6 +53,20 @@ pub type DeleteMemberRequest {
 
 // Database interaction functions
 
+pub fn hash_password(password: String) -> Result(String, String) {
+  case argus.hasher() |> argus.hash(password, argus.gen_salt()) {
+    Ok(hashes) -> Ok(hashes.encoded_hash)
+    Error(err) -> Error("Password hashing failed: " <> string.inspect(err))
+  }
+}
+
+pub fn verify_password(encoded_hash: String, password: String) -> Bool {
+  case argus.verify(encoded_hash, password) {
+    Ok(True) -> True
+    _ -> False
+  }
+}
+
 pub fn create(
   conn: pog.Connection,
   request: CreateMemberRequest,
@@ -60,6 +76,8 @@ pub fn create(
     option.Some(role) -> role
     option.None -> role.Member
   }
+
+  use password_hash <- result.try(hash_password(request.password))
 
   let sql =
     "
@@ -81,8 +99,7 @@ pub fn create(
     |> pog.parameter(pog.text(request.handle))
     |> pog.parameter(pog.text(request.postal_address))
     |> pog.parameter(pog.text(request.phone_number))
-    |> pog.parameter(pog.text(request.password))
-    // TODO: Hash this
+    |> pog.parameter(pog.text(password_hash))
     |> pog.parameter(pog.text(role.to_string(role)))
     |> pog.returning(decode_member_from_db())
     |> pog.execute(conn)
@@ -151,6 +168,40 @@ pub fn list(conn: pog.Connection) -> Result(List(MemberRecord), String) {
   Ok(rows.rows)
 }
 
+pub fn authenticate(
+  conn: pog.Connection,
+  email_address: String,
+  password: String,
+) -> Result(MemberRecord, String) {
+  let sql =
+    "
+    SELECT membership_num, email_address, legal_name, date_of_birth,
+           handle, postal_address, phone_number, password_hash, role,
+           created_at::text, updated_at::text, deleted_at::text
+    FROM members
+    WHERE email_address = $1 AND deleted_at IS NULL
+  "
+
+  use rows <- result.try(
+    pog.query(sql)
+    |> pog.parameter(pog.text(email_address))
+    |> pog.returning(decode_member_from_db())
+    |> pog.execute(conn)
+    |> result.map_error(fn(err) { "Database error: " <> string.inspect(err) }),
+  )
+
+  case rows.rows {
+    [member] -> {
+      case verify_password(member.password_hash, password) {
+        True -> Ok(member)
+        False -> Error("Invalid password")
+      }
+    }
+    [] -> Error("Member not found")
+    _ -> Error("Multiple members found (unexpected)")
+  }
+}
+
 pub fn delete(
   _conn: pog.Connection,
   _membership_id: MembershipId,
@@ -191,7 +242,7 @@ fn decode_member_from_db() -> decode.Decoder(MemberRecord) {
     use handle <- decode.field("handle", decode.string)
     use postal_address <- decode.field("postal_address", decode.string)
     use phone_number <- decode.field("phone_number", decode.string)
-    use _password_hash <- decode.field("password_hash", decode.string)
+    use password_hash <- decode.field("password_hash", decode.string)
     use role_str <- decode.field("role", decode.string)
     use created_at <- decode.field("created_at", decode.string)
     use updated_at <- decode.field("updated_at", decode.string)
@@ -216,6 +267,7 @@ fn decode_member_from_db() -> decode.Decoder(MemberRecord) {
       handle: handle,
       postal_address: postal_address,
       phone_number: phone_number,
+      password_hash: password_hash,
       role: role,
       created_at: created_at,
       updated_at: updated_at,

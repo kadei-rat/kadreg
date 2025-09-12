@@ -74,6 +74,19 @@ pub fn create_member_test() {
     membership_id.to_string(created_member.membership_id)
     == membership_id.to_string(expected_membership_id)
 
+  // Test authentication with correct password
+  let assert Ok(authenticated_member) =
+    members.authenticate(conn, test_email, "testpassword123")
+  let assert True =
+    authenticated_member.membership_num == created_member.membership_num
+  let assert True =
+    authenticated_member.email_address == created_member.email_address
+
+  // Test authentication with wrong password
+  let assert Error(msg) =
+    members.authenticate(conn, test_email, "wrongpassword")
+  let assert True = msg == "Invalid password"
+
   // Clean up
   let _ = cleanup_test_member(conn, test_email)
 }
