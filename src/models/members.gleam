@@ -2,13 +2,13 @@ import argus
 import gleam/dynamic.{type Dynamic}
 import gleam/dynamic/decode
 import gleam/json
-import gleam/list
 import gleam/option.{type Option}
 import gleam/result
 import gleam/string
 import models/membership_id.{type MembershipId}
 import models/role.{type Role}
 import pog
+import utils
 
 // Types
 
@@ -276,21 +276,6 @@ fn decode_member_from_db() -> decode.Decoder(MemberRecord) {
   }
 }
 
-fn decode_errors_to_string(errors: List(decode.DecodeError)) -> String {
-  errors
-  |> list.map(fn(error) {
-    let decode.DecodeError(expected, found, path) = error
-    "Problem with field "
-    <> string.join(path, ".")
-    <> " (expected "
-    <> expected
-    <> ", found "
-    <> found
-    <> ")"
-  })
-  |> string.join(". ")
-}
-
 pub fn decode_create_member_request(
   data: Dynamic,
 ) -> Result(CreateMemberRequest, String) {
@@ -320,5 +305,5 @@ pub fn decode_create_member_request(
     ))
   }
   decode.run(data, decoder)
-  |> result.map_error(decode_errors_to_string)
+  |> result.map_error(utils.decode_errors_to_string)
 }

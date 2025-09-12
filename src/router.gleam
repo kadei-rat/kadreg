@@ -1,24 +1,45 @@
 import gleam/http.{Get, Patch, Post}
 import handlers
 import pog
+import session
 import wisp.{type Request, type Response}
 
 pub fn handle_request(req: Request, db: pog.Connection) -> Response {
   use req <- middleware(req)
 
   case wisp.path_segments(req), req.method {
-    ["members"], Post -> handlers.create_member_handler(req, db)
+    // Authentication routes (no session required)
+    ["auth", "login"], Post -> handlers.login_handler(req, db)
+    ["auth", "logout"], Post -> handlers.logout_handler(req, db)
+    ["auth", "me"], Get -> handlers.me_handler(req, db)
 
-    ["members"], Get -> handlers.list_members_handler(req, db)
+    // Protected member routes (session required)
+    ["members"], Post ->
+      session.require_session(req, fn(req, _session_membership_id) {
+        handlers.create_member_handler(req, db)
+      })
 
-    ["members"], Patch -> handlers.update_member_handler(req, db)
+    ["members"], Get ->
+      session.require_session(req, fn(req, _session_membership_id) {
+        handlers.list_members_handler(req, db)
+      })
+
+    ["members"], Patch ->
+      session.require_session(req, fn(req, _session_membership_id) {
+        handlers.update_member_handler(req, db)
+      })
 
     ["members", membership_id], Get ->
-      handlers.get_member_handler(req, db, membership_id)
+      session.require_session(req, fn(req, _session_membership_id) {
+        handlers.get_member_handler(req, db, membership_id)
+      })
 
     ["members", membership_id, "delete"], Post ->
-      handlers.delete_member_handler(req, db, membership_id)
+      session.require_session(req, fn(req, _session_membership_id) {
+        handlers.delete_member_handler(req, db, membership_id)
+      })
 
+    // Health check (no session required)
     ["health"], Get -> {
       wisp.response(200)
       |> wisp.string_body("OK")

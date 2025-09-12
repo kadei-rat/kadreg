@@ -1,42 +1,12 @@
 // Integration tests for member database operations
 // These tests require a running PostgreSQL database
-import config
-import database
 import gleam/int
 import gleam/list
 import gleam/option
-import gleam/result
 import models/members
 import models/membership_id
 import models/role
-import pog
-
-// Test database helper - connects to test database
-fn setup_test_db() -> Result(pog.Connection, String) {
-  let config = config.load()
-
-  // Use test database name if running in test mode
-  let test_config = config.Config(..config, db_name: config.db_name <> "_test")
-
-  database.connect(test_config)
-}
-
-// Helper to clean up test data
-fn cleanup_test_member(
-  conn: pog.Connection,
-  email: String,
-) -> Result(Nil, String) {
-  let sql = "DELETE FROM members WHERE email_address = $1"
-
-  use _ <- result.try(
-    pog.query(sql)
-    |> pog.parameter(pog.text(email))
-    |> pog.execute(conn)
-    |> result.map_error(fn(_) { "Cleanup failed" }),
-  )
-
-  Ok(Nil)
-}
+import test_helpers.{cleanup_test_member, setup_test_db}
 
 pub fn create_member_test() {
   let assert Ok(conn) = setup_test_db()

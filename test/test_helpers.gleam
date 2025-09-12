@@ -1,0 +1,67 @@
+import config
+import database
+import gleam/option
+import gleam/result
+import models/members
+import models/role
+import pog
+
+pub fn setup_test_db() -> Result(pog.Connection, String) {
+  let config = config.load()
+  // Use test database name if running in test mode
+  let test_config = config.Config(..config, db_name: config.db_name <> "_test")
+  database.connect(test_config)
+}
+
+pub fn cleanup_test_member(
+  conn: pog.Connection,
+  email: String,
+) -> Result(Nil, String) {
+  let sql = "DELETE FROM members WHERE email_address = $1"
+
+  use _ <- result.try(
+    pog.query(sql)
+    |> pog.parameter(pog.text(email))
+    |> pog.execute(conn)
+    |> result.map_error(fn(_) { "Cleanup failed" }),
+  )
+
+  Ok(Nil)
+}
+
+pub fn create_test_member(
+  conn: pog.Connection,
+  email: String,
+  password: String,
+) -> Result(members.MemberRecord, String) {
+  create_test_member_with_details(
+    conn,
+    email,
+    password,
+    "Test User",
+    "testuser",
+    role.Member,
+  )
+}
+
+pub fn create_test_member_with_details(
+  conn: pog.Connection,
+  email: String,
+  password: String,
+  legal_name: String,
+  handle: String,
+  member_role: role.Role,
+) -> Result(members.MemberRecord, String) {
+  let request =
+    members.CreateMemberRequest(
+      email_address: email,
+      legal_name: legal_name,
+      date_of_birth: "1990-01-01",
+      handle: handle,
+      postal_address: "123 Test St",
+      phone_number: "555-0123",
+      password: password,
+      role: option.Some(member_role),
+    )
+  members.create(conn, request)
+}

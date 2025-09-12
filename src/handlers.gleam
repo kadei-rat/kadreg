@@ -1,8 +1,12 @@
+import gleam/dynamic.{type Dynamic}
+import gleam/dynamic/decode
 import gleam/json
 import gleam/result
 import models/members
 import models/membership_id
 import pog
+import session
+import utils
 import wisp.{type Request, type Response}
 
 // Handlers
@@ -70,9 +74,60 @@ pub fn delete_member_handler(
   |> result.unwrap_both
 }
 
-// Helpers
+// POST /auth/login (Create a session)
+pub fn login_handler(req: Request, db: pog.Connection) -> Response {
+  use body <- wisp.require_json(req)
+
+  decode_login_request(body)
+  |> result.try(fn(data) {
+    members.authenticate(db, data.email_address, data.password)
+  })
+  |> result.map(fn(member) {
+    session.create_session(wisp.ok(), req, member.membership_id)
+  })
+  |> result.map_error(fn(err) { json_error_response(err, 401) })
+  |> result.unwrap_both
+}
+
+// POST /auth/logout (Destroy session)
+pub fn logout_handler(req: Request, _db: pog.Connection) -> Response {
+  let success_json =
+    json.object([#("message", json.string("Logout successful"))])
+  wisp.json_response(json.to_string_tree(success_json), 200)
+  |> session.destroy_session(req)
+}
+
+// GET /auth/me (Get current session info)
+pub fn me_handler(req: Request, _db: pog.Connection) -> Response {
+  case session.get_session(req) {
+    Ok(membership_id) -> {
+      let user_json = json.object([
+        #("membership_id", json.string(membership_id.to_string(membership_id)))
+      ])
+      wisp.json_response(json.to_string_tree(user_json), 200)
+    }
+    Error(_) -> json_error_response("No active session", 401)
+  }
+}
 
 fn json_error_response(message: String, status: Int) -> Response {
   let error_json = json.object([#("error", json.string(message))])
   wisp.json_response(json.to_string_tree(error_json), status)
+}
+
+type LoginRequest {
+  LoginRequest(email_address: String, password: String)
+}
+
+fn decode_login_request(data: Dynamic) -> Result(LoginRequest, String) {
+  let decoder = {
+    use email_address <- decode.field("email_address", decode.string)
+    use password <- decode.field("password", decode.string)
+    decode.success(LoginRequest(
+      email_address: email_address,
+      password: password,
+    ))
+  }
+  decode.run(data, decoder)
+  |> result.map_error(utils.decode_errors_to_string)
 }
