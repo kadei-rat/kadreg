@@ -1,4 +1,5 @@
 import argus
+import errors.{type AppError}
 import gleam/dynamic.{type Dynamic}
 import gleam/dynamic/decode
 import gleam/json
@@ -53,10 +54,10 @@ pub type DeleteMemberRequest {
 
 // Database interaction functions
 
-pub fn hash_password(password: String) -> Result(String, String) {
+pub fn hash_password(password: String) -> Result(String, AppError) {
   case argus.hasher() |> argus.hash(password, argus.gen_salt()) {
     Ok(hashes) -> Ok(hashes.encoded_hash)
-    Error(err) -> Error("Password hashing failed: " <> string.inspect(err))
+    Error(err) -> Error(errors.internal_error("Password hashing failed: " <> string.inspect(err)))
   }
 }
 
@@ -70,7 +71,7 @@ pub fn verify_password(encoded_hash: String, password: String) -> Bool {
 pub fn create(
   conn: pog.Connection,
   request: CreateMemberRequest,
-) -> Result(MemberRecord, String) {
+) -> Result(MemberRecord, AppError) {
   // Default role to Member if not specified
   let role = case request.role {
     option.Some(role) -> role
@@ -103,25 +104,22 @@ pub fn create(
     |> pog.parameter(pog.text(role.to_string(role)))
     |> pog.returning(decode_member_from_db())
     |> pog.execute(conn)
-    |> result.map_error(fn(err) { "Database error: " <> string.inspect(err) }),
+    |> result.map_error(fn(err) { errors.internal_error("Database error: " <> string.inspect(err)) }),
   )
 
   case rows.rows {
     [member] -> Ok(member)
-    [] -> Error("Insert failed - no rows returned")
-    _ -> Error("Insert returned multiple rows (unexpected)")
+    [] -> Error(errors.internal_error("Insert failed - no rows returned"))
+    _ -> Error(errors.internal_error("Insert returned multiple rows (unexpected)"))
   }
 }
 
 pub fn get(
   conn: pog.Connection,
   membership_id: MembershipId,
-) -> Result(MemberRecord, String) {
+) -> Result(MemberRecord, AppError) {
   // Convert membership ID to number for database query
-  use membership_num <- result.try(
-    membership_id.to_number(membership_id)
-    |> result.map_error(fn(_) { "Invalid membership ID format" }),
-  )
+  use membership_num <- result.try(membership_id.to_number(membership_id))
 
   let sql =
     "
@@ -137,17 +135,17 @@ pub fn get(
     |> pog.parameter(pog.int(membership_num))
     |> pog.returning(decode_member_from_db())
     |> pog.execute(conn)
-    |> result.map_error(fn(err) { "Database error: " <> string.inspect(err) }),
+    |> result.map_error(fn(err) { errors.internal_error("Database error: " <> string.inspect(err)) }),
   )
 
   case rows.rows {
     [member] -> Ok(member)
-    [] -> Error("Member not found")
-    _ -> Error("Multiple members found (unexpected)")
+    [] -> Error(errors.not_found_error("Member not found"))
+    _ -> Error(errors.internal_error("Multiple members found (unexpected)"))
   }
 }
 
-pub fn list(conn: pog.Connection) -> Result(List(MemberRecord), String) {
+pub fn list(conn: pog.Connection) -> Result(List(MemberRecord), AppError) {
   let sql =
     "
     SELECT membership_num, email_address, legal_name, date_of_birth,
@@ -162,7 +160,7 @@ pub fn list(conn: pog.Connection) -> Result(List(MemberRecord), String) {
     pog.query(sql)
     |> pog.returning(decode_member_from_db())
     |> pog.execute(conn)
-    |> result.map_error(fn(err) { "Database error: " <> string.inspect(err) }),
+    |> result.map_error(fn(err) { errors.internal_error("Database error: " <> string.inspect(err)) }),
   )
 
   Ok(rows.rows)
@@ -172,7 +170,7 @@ pub fn authenticate(
   conn: pog.Connection,
   email_address: String,
   password: String,
-) -> Result(MemberRecord, String) {
+) -> Result(MemberRecord, AppError) {
   let sql =
     "
     SELECT membership_num, email_address, legal_name, date_of_birth,
@@ -187,18 +185,18 @@ pub fn authenticate(
     |> pog.parameter(pog.text(email_address))
     |> pog.returning(decode_member_from_db())
     |> pog.execute(conn)
-    |> result.map_error(fn(err) { "Database error: " <> string.inspect(err) }),
+    |> result.map_error(fn(err) { errors.internal_error("Database error: " <> string.inspect(err)) }),
   )
 
   case rows.rows {
     [member] -> {
       case verify_password(member.password_hash, password) {
         True -> Ok(member)
-        False -> Error("Invalid password")
+        False -> Error(errors.authentication_error("Invalid password"))
       }
     }
-    [] -> Error("Member not found")
-    _ -> Error("Multiple members found (unexpected)")
+    [] -> Error(errors.authentication_error("Member not found"))
+    _ -> Error(errors.internal_error("Multiple members found (unexpected)"))
   }
 }
 
@@ -206,8 +204,8 @@ pub fn delete(
   _conn: pog.Connection,
   _membership_id: MembershipId,
   _purge_pii: Bool,
-) -> Result(Nil, String) {
-  Error("Not implemented yet")
+) -> Result(Nil, AppError) {
+  Error(errors.internal_error("Not implemented yet"))
 }
 
 pub fn to_json(member: MemberRecord) -> json.Json {
@@ -278,7 +276,7 @@ fn decode_member_from_db() -> decode.Decoder(MemberRecord) {
 
 pub fn decode_create_member_request(
   data: Dynamic,
-) -> Result(CreateMemberRequest, String) {
+) -> Result(CreateMemberRequest, AppError) {
   let decoder = {
     use email_address <- decode.field("email_address", decode.string)
     use legal_name <- decode.field("legal_name", decode.string)
@@ -305,5 +303,5 @@ pub fn decode_create_member_request(
     ))
   }
   decode.run(data, decoder)
-  |> result.map_error(utils.decode_errors_to_string)
+  |> result.map_error(fn(err) { errors.validation_error(utils.decode_errors_to_string(err)) })
 }

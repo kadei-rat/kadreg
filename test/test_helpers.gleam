@@ -67,6 +67,7 @@ pub fn create_test_member_with_details(
       role: option.Some(member_role),
     )
   members.create(conn, request)
+  |> result.map_error(fn(_) { "Test member creation failed" })
 }
 
 pub fn set_session_cookie(

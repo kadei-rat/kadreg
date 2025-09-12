@@ -1,4 +1,5 @@
 import authorization
+import errors
 import gleam/dynamic.{type Dynamic}
 import gleam/dynamic/decode
 import gleam/json
@@ -27,7 +28,7 @@ pub fn create_member_handler(req: Request, db: pog.Connection) -> Response {
   |> result.map(members.to_json)
   |> result.map(json.to_string_tree)
   |> result.map(wisp.json_response(_, 201))
-  |> result.map_error(fn(err) { json_error_response(err, 400) })
+  |> result.map_error(errors.error_to_response)
   |> result.unwrap_both
 }
 
@@ -48,7 +49,7 @@ pub fn get_member_handler(
   |> result.map(members.to_json)
   |> result.map(json.to_string_tree)
   |> result.map(wisp.json_response(_, 200))
-  |> result.map_error(fn(err) { json_error_response(err, 400) })
+  |> result.map_error(errors.error_to_response)
   |> result.unwrap_both
 }
 
@@ -61,7 +62,7 @@ pub fn list_members_handler(req: Request, db: pog.Connection) -> Response {
   |> result.map(json.array(_, members.to_json))
   |> result.map(json.to_string_tree)
   |> result.map(wisp.json_response(_, 200))
-  |> result.map_error(fn(err) { json_error_response(err, 400) })
+  |> result.map_error(errors.error_to_response)
   |> result.unwrap_both
 }
 
@@ -92,7 +93,7 @@ pub fn delete_member_handler(
   })
   |> result.try(members.delete(db, _, purge_pii))
   |> result.map(fn(_) { wisp.ok() })
-  |> result.map_error(fn(err) { json_error_response(err, 400) })
+  |> result.map_error(errors.error_to_response)
   |> result.unwrap_both
 }
 
@@ -110,7 +111,7 @@ pub fn login_handler(req: Request, db: pog.Connection) -> Response {
     wisp.json_response(json.to_string_tree(success_json), 200)
     |> session.create_session(req, member.membership_id, member.role)
   })
-  |> result.map_error(fn(err) { json_error_response(err, 401) })
+  |> result.map_error(errors.error_to_response)
   |> result.unwrap_both
 }
 
@@ -136,20 +137,15 @@ pub fn me_handler(req: Request, _db: pog.Connection) -> Response {
         ])
       wisp.json_response(json.to_string_tree(user_json), 200)
     }
-    Error(_) -> json_error_response("No active session", 401)
+    Error(err) -> errors.error_to_response(err)
   }
-}
-
-fn json_error_response(message: String, status: Int) -> Response {
-  let error_json = json.object([#("error", json.string(message))])
-  wisp.json_response(json.to_string_tree(error_json), status)
 }
 
 type LoginRequest {
   LoginRequest(email_address: String, password: String)
 }
 
-fn decode_login_request(data: Dynamic) -> Result(LoginRequest, String) {
+fn decode_login_request(data: Dynamic) -> Result(LoginRequest, errors.AppError) {
   let decoder = {
     use email_address <- decode.field("email_address", decode.string)
     use password <- decode.field("password", decode.string)
@@ -159,5 +155,7 @@ fn decode_login_request(data: Dynamic) -> Result(LoginRequest, String) {
     ))
   }
   decode.run(data, decoder)
-  |> result.map_error(utils.decode_errors_to_string)
+  |> result.map_error(fn(err) {
+    errors.validation_error(utils.decode_errors_to_string(err))
+  })
 }

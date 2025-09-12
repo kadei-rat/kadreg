@@ -20,8 +20,8 @@ pub fn member_cannot_list_all_members_test() {
   
   let response = router.handle_request(req, conn)
   
-  // Should return 400 Forbidden
-  let assert 400 = response.status
+  // Should return 403 Forbidden
+  let assert 403 = response.status
   let body = testing.string_body(response)
   let assert True = string.contains(body, "not authorised")
   
@@ -92,8 +92,8 @@ pub fn member_cannot_access_others_details_test() {
   
   let response = router.handle_request(req, conn)
   
-  // Should return 400 Forbidden
-  let assert 400 = response.status
+  // Should return 403 Forbidden
+  let assert 403 = response.status
   let body = testing.string_body(response)
   let assert True = string.contains(body, "not authorised")
   
@@ -155,8 +155,8 @@ pub fn member_cannot_create_members_test() {
   
   let response = router.handle_request(req, conn)
   
-  // Should return 400 Forbidden
-  let assert 400 = response.status
+  // Should return 403 Forbidden
+  let assert 403 = response.status
   let body = testing.string_body(response)
   let assert True = string.contains(body, "not authorised")
   

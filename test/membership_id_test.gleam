@@ -1,3 +1,4 @@
+import errors
 import gleam/string
 import models/membership_id
 
@@ -39,38 +40,38 @@ pub fn membership_id_to_number_max_test() {
 // Test to_number function with invalid length
 pub fn membership_id_to_number_too_short_test() {
   let invalid_id = membership_id.MembershipId("PAW12")
-  let assert Error(msg) = membership_id.to_number(invalid_id)
+  let assert Error(errors.ValidationError(msg)) = membership_id.to_number(invalid_id)
   let assert True = string.contains(msg, "Invalid membership ID length")
 }
 
 pub fn membership_id_to_number_too_long_test() {
   let invalid_id = membership_id.MembershipId("PAW00123456")
-  let assert Error(msg) = membership_id.to_number(invalid_id)
+  let assert Error(errors.ValidationError(msg)) = membership_id.to_number(invalid_id)
   let assert True = string.contains(msg, "Invalid membership ID length")
 }
 
 // Test to_number function with invalid prefix
 pub fn membership_id_to_number_wrong_prefix_test() {
   let invalid_id = membership_id.MembershipId("XYZ0034")
-  let assert Error(msg) = membership_id.to_number(invalid_id)
+  let assert Error(errors.ValidationError(msg)) = membership_id.to_number(invalid_id)
   let assert True = string.contains(msg, "Invalid membership ID prefix")
 }
 
 pub fn membership_id_to_number_lowercase_prefix_test() {
   let invalid_id = membership_id.MembershipId("paw0034")
-  let assert Error(msg) = membership_id.to_number(invalid_id)
+  let assert Error(errors.ValidationError(msg)) = membership_id.to_number(invalid_id)
   let assert True = string.contains(msg, "Invalid membership ID prefix")
 }
 
 // Test to_number function with invalid number part
 pub fn membership_id_to_number_non_numeric_test() {
   let invalid_id = membership_id.MembershipId("PAWABCD")
-  let assert Error(msg) = membership_id.to_number(invalid_id)
+  let assert Error(errors.ValidationError(msg)) = membership_id.to_number(invalid_id)
   let assert True = string.contains(msg, "Invalid membership ID number part")
 }
 
 pub fn membership_id_to_number_mixed_chars_test() {
   let invalid_id = membership_id.MembershipId("PAW12AB")
-  let assert Error(msg) = membership_id.to_number(invalid_id)
+  let assert Error(errors.ValidationError(msg)) = membership_id.to_number(invalid_id)
   let assert True = string.contains(msg, "Invalid membership ID number part")
 }

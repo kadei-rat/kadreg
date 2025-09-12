@@ -118,8 +118,8 @@ pub fn login_malformed_request_test() {
   let req = testing.post_json("/auth/login", [], login_json)
   let response = handlers.login_handler(req, conn)
 
-  // Check response
-  let assert 401 = response.status
+  // Check response - malformed request should return 400, not 401
+  let assert 400 = response.status
   let body = testing.string_body(response)
   let assert True = string.contains(body, "error")
 }
@@ -170,7 +170,7 @@ pub fn me_without_session_test() {
   // Check response
   let assert 401 = response.status
   let body = testing.string_body(response)
-  let assert True = string.contains(body, "No active session")
+  let assert True = string.contains(body, "No session found")
 }
 
 pub fn me_invalid_session_test() {
@@ -182,8 +182,8 @@ pub fn me_invalid_session_test() {
 
   let response = handlers.me_handler(req, conn)
 
-  // Check response  
+  // Check response
   let assert 401 = response.status
   let body = testing.string_body(response)
-  let assert True = string.contains(body, "No active session")
+  let assert True = string.contains(body, "Invalid session format")
 }

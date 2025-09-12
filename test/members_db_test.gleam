@@ -1,5 +1,6 @@
 // Integration tests for member database operations
 // These tests require a running PostgreSQL database
+import errors
 import gleam/int
 import gleam/list
 import gleam/option
@@ -53,7 +54,7 @@ pub fn create_member_test() {
     authenticated_member.email_address == created_member.email_address
 
   // Test authentication with wrong password
-  let assert Error(msg) =
+  let assert Error(errors.AuthenticationError(msg)) =
     members.authenticate(conn, test_email, "wrongpassword")
   let assert True = msg == "Invalid password"
 
@@ -98,7 +99,7 @@ pub fn get_member_test() {
 
   // Test get with invalid membership ID
   let invalid_id = membership_id.from_number(999)
-  let assert Error(msg) = members.get(conn, invalid_id)
+  let assert Error(errors.NotFoundError(msg)) = members.get(conn, invalid_id)
   let assert True = msg == "Member not found"
 
   // Clean up

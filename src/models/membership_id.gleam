@@ -1,3 +1,4 @@
+import errors.{type AppError}
 import gleam/int
 import gleam/result
 import gleam/string
@@ -25,7 +26,7 @@ pub fn from_number(membership_num: Int) -> MembershipId {
 
 // Extract the membership number from a membership ID
 // Example: "PAW0034" -> 34
-pub fn to_number(membership_id: MembershipId) -> Result(Int, String) {
+pub fn to_number(membership_id: MembershipId) -> Result(Int, AppError) {
   let MembershipId(id_str) = membership_id
 
   validate_length(id_str)
@@ -39,32 +40,34 @@ pub fn to_string(id: MembershipId) -> String {
   }
 }
 
-fn validate_length(id_str: String) -> Result(String, String) {
+fn validate_length(id_str: String) -> Result(String, AppError) {
   case string.length(id_str) == total_length {
     True -> Ok(id_str)
     False ->
       Error(
-        "Invalid membership ID length: expected "
-        <> int.to_string(total_length)
-        <> " characters",
+        errors.validation_error(
+          "Invalid membership ID length: expected "
+          <> int.to_string(total_length)
+          <> " characters",
+        )
       )
   }
 }
 
-fn validate_prefix(id_str: String) -> Result(String, String) {
+fn validate_prefix(id_str: String) -> Result(String, AppError) {
   let actual_prefix = string.slice(id_str, 0, 3)
   case actual_prefix == prefix {
     True -> Ok(id_str)
-    False -> Error("Invalid membership ID prefix: expected '" <> prefix <> "'")
+    False -> Error(errors.validation_error("Invalid membership ID prefix: expected '" <> prefix <> "'"))
   }
 }
 
-fn parse_number_part(id_str: String) -> Result(Int, String) {
+fn parse_number_part(id_str: String) -> Result(Int, AppError) {
   let number_part = string.slice(id_str, 3, number_length)
   case int.parse(number_part) {
     Ok(num) -> Ok(num)
     Error(_) ->
-      Error("Invalid membership ID number part: '" <> number_part <> "'")
+      Error(errors.validation_error("Invalid membership ID number part: '" <> number_part <> "'"))
   }
 }
 
@@ -75,10 +78,9 @@ pub fn is_valid(membership_id: MembershipId) -> Bool {
   }
 }
 
-pub fn parse(id_str: String) -> Result(MembershipId, String) {
-  let candidate_id = MembershipId(id_str)
-  case is_valid(candidate_id) {
-    True -> Ok(candidate_id)
-    False -> Error("Invalid membership ID format: '" <> id_str <> "'")
-  }
+pub fn parse(id_str: String) -> Result(MembershipId, AppError) {
+  use _ <- result.try(validate_length(id_str))
+  use _ <- result.try(validate_prefix(id_str))
+  use _ <- result.try(parse_number_part(id_str))
+  Ok(MembershipId(id_str))
 }

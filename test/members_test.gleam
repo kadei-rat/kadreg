@@ -1,3 +1,4 @@
+import errors
 import gleam/dynamic/decode
 import gleam/json
 import gleam/option
@@ -101,7 +102,7 @@ pub fn decode_create_member_request_missing_field_test() {
 
   let assert Ok(dynamic_data) =
     json.parse(json.to_string(json_data), decode.dynamic)
-  let assert Error(msg) = members.decode_create_member_request(dynamic_data)
+  let assert Error(errors.ValidationError(msg)) = members.decode_create_member_request(dynamic_data)
   let assert True = string.contains(msg, "legal_name")
 }
 

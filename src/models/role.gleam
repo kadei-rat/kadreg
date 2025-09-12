@@ -1,3 +1,5 @@
+import errors.{type AppError}
+
 pub type Role {
   Member
   Staff
@@ -16,13 +18,13 @@ pub fn to_string(role: Role) -> String {
   }
 }
 
-pub fn from_string(str: String) -> Result(Role, String) {
+pub fn from_string(str: String) -> Result(Role, AppError) {
   case str {
     "Member" -> Ok(Member)
     "Staff" -> Ok(Staff)
     "RegStaff" -> Ok(RegStaff)
     "Director" -> Ok(Director)
     "Sysadmin" -> Ok(Sysadmin)
-    _ -> Error("Invalid role: " <> str)
+    _ -> Error(errors.validation_error("Invalid role: " <> str))
   }
 }
