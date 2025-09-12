@@ -1,9 +1,15 @@
 import config
 import gleam/erlang/process
 import gleam/string
+import global_value
 import pog
 
 pub fn connect(config: config.Config) -> Result(pog.Connection, String) {
+  // global_value memoises the db connection. static key, assumes that a given
+  // process will only ever use a single db config. (static key is generally
+  // good practice with global_value which uses persistent_term)
+  use <- global_value.create_with_unique_name("pog_conn")
+
   let pool_name = process.new_name(prefix: "kadreg_db")
 
   let db_config =
