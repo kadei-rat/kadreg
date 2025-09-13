@@ -57,7 +57,10 @@ pub type DeleteMemberRequest {
 pub fn hash_password(password: String) -> Result(String, AppError) {
   case argus.hasher() |> argus.hash(password, argus.gen_salt()) {
     Ok(hashes) -> Ok(hashes.encoded_hash)
-    Error(err) -> Error(errors.internal_error("Password hashing failed: " <> string.inspect(err)))
+    Error(err) ->
+      Error(errors.internal_error(
+        "Password hashing failed: " <> string.inspect(err),
+      ))
   }
 }
 
@@ -104,13 +107,16 @@ pub fn create(
     |> pog.parameter(pog.text(role.to_string(role)))
     |> pog.returning(decode_member_from_db())
     |> pog.execute(conn)
-    |> result.map_error(fn(err) { errors.internal_error("Database error: " <> string.inspect(err)) }),
+    |> result.map_error(fn(err) {
+      errors.internal_error("Database error: " <> string.inspect(err))
+    }),
   )
 
   case rows.rows {
     [member] -> Ok(member)
     [] -> Error(errors.internal_error("Insert failed - no rows returned"))
-    _ -> Error(errors.internal_error("Insert returned multiple rows (unexpected)"))
+    _ ->
+      Error(errors.internal_error("Insert returned multiple rows (unexpected)"))
   }
 }
 
@@ -135,7 +141,9 @@ pub fn get(
     |> pog.parameter(pog.int(membership_num))
     |> pog.returning(decode_member_from_db())
     |> pog.execute(conn)
-    |> result.map_error(fn(err) { errors.internal_error("Database error: " <> string.inspect(err)) }),
+    |> result.map_error(fn(err) {
+      errors.internal_error("Database error: " <> string.inspect(err))
+    }),
   )
 
   case rows.rows {
@@ -160,7 +168,9 @@ pub fn list(conn: pog.Connection) -> Result(List(MemberRecord), AppError) {
     pog.query(sql)
     |> pog.returning(decode_member_from_db())
     |> pog.execute(conn)
-    |> result.map_error(fn(err) { errors.internal_error("Database error: " <> string.inspect(err)) }),
+    |> result.map_error(fn(err) {
+      errors.internal_error("Database error: " <> string.inspect(err))
+    }),
   )
 
   Ok(rows.rows)
@@ -185,7 +195,9 @@ pub fn authenticate(
     |> pog.parameter(pog.text(email_address))
     |> pog.returning(decode_member_from_db())
     |> pog.execute(conn)
-    |> result.map_error(fn(err) { errors.internal_error("Database error: " <> string.inspect(err)) }),
+    |> result.map_error(fn(err) {
+      errors.internal_error("Database error: " <> string.inspect(err))
+    }),
   )
 
   case rows.rows {
@@ -303,5 +315,7 @@ pub fn decode_create_member_request(
     ))
   }
   decode.run(data, decoder)
-  |> result.map_error(fn(err) { errors.validation_error(utils.decode_errors_to_string(err)) })
+  |> result.map_error(fn(err) {
+    errors.validation_error(utils.decode_errors_to_string(err))
+  })
 }

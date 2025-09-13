@@ -21,7 +21,7 @@ pub fn main() {
   }
 
   let assert Ok(_) =
-    wisp_mist.handler(router.handle_request(_, db), conf.secret_key_base)
+    wisp_mist.handler(router.handle_request(_, conf, db), conf.secret_key_base)
     |> mist.new
     |> mist.port(conf.server_port)
     |> mist.start

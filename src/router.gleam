@@ -1,12 +1,23 @@
+import config
 import gleam/http.{Get, Patch, Post}
 import handlers
 import pog
 import wisp.{type Request, type Response}
 
-pub fn handle_request(req: Request, db: pog.Connection) -> Response {
+pub fn handle_request(
+  req: Request,
+  conf: config.Config,
+  db: pog.Connection,
+) -> Response {
   use req <- middleware(req)
 
   case wisp.path_segments(req), req.method {
+    // static files
+    ["static", ..], Get -> handlers.static(req)
+
+    // html
+    [], Get -> handlers.login_page(req, db, conf)
+
     // api
     ["auth", "login"], Post -> handlers.login(req, db)
     ["auth", "logout"], Post -> handlers.logout(req, db)

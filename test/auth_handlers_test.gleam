@@ -1,4 +1,3 @@
-import gleam/json
 import gleam/list
 import gleam/result
 import gleam/string
@@ -17,20 +16,30 @@ pub fn login_success_and_me_test() {
   let _ = cleanup_test_member(conn, test_email)
   let assert Ok(member) = create_test_member(conn, test_email, test_password)
 
-  // Create login request
-  let login_json =
-    json.object([
-      #("email_address", json.string(test_email)),
-      #("password", json.string(test_password)),
-    ])
+  // Create login request with form data
+  let form_data = [
+    #("email_address", test_email),
+    #("password", test_password),
+  ]
 
-  let login_req = testing.post_json("/auth/login", [], login_json)
+  let login_req = testing.post_form("/auth/login", [], form_data)
   let login_response = handlers.login(login_req, conn)
 
-  // Check login response
-  let assert 200 = login_response.status
-  let body = testing.string_body(login_response)
-  let assert True = string.contains(body, "Login successful")
+  // Check login response - should be a redirect
+  let assert 303 = login_response.status
+  let location_header = case login_response.headers {
+    [] -> "no-location-header"
+    headers -> {
+      headers
+      |> list.find(fn(header) {
+        let #(name, _value) = header
+        name == "location"
+      })
+      |> result.map(fn(header) { header.1 })
+      |> result.unwrap("no-location-header")
+    }
+  }
+  let assert True = string.contains(location_header, "/auth/me")
 
   // Extract session cookie from login response
   let session_cookie = case login_response.headers {
@@ -71,19 +80,29 @@ pub fn login_invalid_credentials_test() {
     create_test_member(conn, test_email, "correct_password")
 
   // Try login with wrong password
-  let login_json =
-    json.object([
-      #("email_address", json.string(test_email)),
-      #("password", json.string("wrong_password")),
-    ])
+  let form_data = [
+    #("email_address", test_email),
+    #("password", "wrong_password"),
+  ]
 
-  let req = testing.post_json("/auth/login", [], login_json)
+  let req = testing.post_form("/auth/login", [], form_data)
   let response = handlers.login(req, conn)
 
-  // Check response
-  let assert 401 = response.status
-  let body = testing.string_body(response)
-  let assert True = string.contains(body, "error")
+  // Check response - should redirect to root with error parameter
+  let assert 303 = response.status
+  let location_header = case response.headers {
+    [] -> "no-location-header"
+    headers -> {
+      headers
+      |> list.find(fn(header) {
+        let #(name, _value) = header
+        name == "location"
+      })
+      |> result.map(fn(header) { header.1 })
+      |> result.unwrap("no-location-header")
+    }
+  }
+  let assert True = string.contains(location_header, "/?error=")
 
   // Cleanup
   let _ = cleanup_test_member(conn, test_email)
@@ -93,35 +112,57 @@ pub fn login_invalid_email_test() {
   let assert Ok(conn) = setup_test_db()
 
   // Try login with nonexistent email
-  let login_json =
-    json.object([
-      #("email_address", json.string("nonexistent@example.com")),
-      #("password", json.string("anypassword")),
-    ])
+  let form_data = [
+    #("email_address", "nonexistent@example.com"),
+    #("password", "anypassword"),
+  ]
 
-  let req = testing.post_json("/auth/login", [], login_json)
+  let req = testing.post_form("/auth/login", [], form_data)
   let response = handlers.login(req, conn)
 
-  // Check response
-  let assert 401 = response.status
-  let body = testing.string_body(response)
-  let assert True = string.contains(body, "error")
+  // Check response - should redirect to root with error parameter
+  let assert 303 = response.status
+  let location_header = case response.headers {
+    [] -> "no-location-header"
+    headers -> {
+      headers
+      |> list.find(fn(header) {
+        let #(name, _value) = header
+        name == "location"
+      })
+      |> result.map(fn(header) { header.1 })
+      |> result.unwrap("no-location-header")
+    }
+  }
+  let assert True = string.contains(location_header, "/?error=")
 }
 
 pub fn login_malformed_request_test() {
   let assert Ok(conn) = setup_test_db()
 
-  // Send malformed JSON (missing password field)
-  let login_json =
-    json.object([#("email_address", json.string("test@example.com"))])
+  // Send malformed form data (missing password field)
+  let form_data = [
+    #("email_address", "test@example.com"),
+  ]
 
-  let req = testing.post_json("/auth/login", [], login_json)
+  let req = testing.post_form("/auth/login", [], form_data)
   let response = handlers.login(req, conn)
 
-  // Check response - malformed request should return 400, not 401
-  let assert 400 = response.status
-  let body = testing.string_body(response)
-  let assert True = string.contains(body, "error")
+  // Check response - should redirect to root with error parameter
+  let assert 303 = response.status
+  let location_header = case response.headers {
+    [] -> "no-location-header"
+    headers -> {
+      headers
+      |> list.find(fn(header) {
+        let #(name, _value) = header
+        name == "location"
+      })
+      |> result.map(fn(header) { header.1 })
+      |> result.unwrap("no-location-header")
+    }
+  }
+  let assert True = string.contains(location_header, "/?error=")
 }
 
 pub fn logout_success_test() {

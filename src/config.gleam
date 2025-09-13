@@ -12,6 +12,7 @@ pub type Config {
   Config(
     // general config
     kadreg_env: Environment,
+    con_name: String,
     // database configuration
     db_host: String,
     db_port: Int,
@@ -38,6 +39,10 @@ pub fn load() -> Config {
     envoy.get("KADREG_ENV")
     |> result.unwrap("dev")
     |> parse_environment
+
+  let con_name =
+    envoy.get("CON_NAME")
+    |> result.unwrap("Pawsome")
 
   let db_host =
     envoy.get("DB_HOST")
@@ -84,6 +89,7 @@ pub fn load() -> Config {
 
   Config(
     kadreg_env: kadreg_env,
+    con_name: con_name,
     db_host: db_host,
     db_port: db_port,
     db_name: db_name,

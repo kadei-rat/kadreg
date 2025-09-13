@@ -1,9 +1,13 @@
 import authorization
+import config
 import errors
-import gleam/dynamic.{type Dynamic}
-import gleam/dynamic/decode
+import frontend/layout
+import frontend/login_page
 import gleam/json
+import gleam/option.{None, Some}
 import gleam/result
+import gleam/uri
+import lustre/element
 import models/members
 import models/membership_id
 import models/role
@@ -12,7 +16,33 @@ import session
 import utils
 import wisp.{type Request, type Response}
 
-// Handlers
+// HTML routes
+
+pub fn static(req: Request) -> Response {
+  let assert Ok(priv) = wisp.priv_directory("kadreg")
+  use <- wisp.serve_static(req, under: "/static", from: priv)
+  wisp.not_found()
+}
+
+pub fn login_page(
+  req: Request,
+  _db: pog.Connection,
+  conf: config.Config,
+) -> Response {
+  let error_msg = case
+    wisp.get_query(req) |> utils.find_first(fn(pair) { pair.0 == "error" })
+  {
+    Ok(#(_, msg)) -> Some(msg)
+    Error(_) -> None
+  }
+
+  [login_page.root_with_error(error_msg)]
+  |> layout.layout(conf.con_name)
+  |> element.to_document_string_tree
+  |> wisp.html_response(200)
+}
+
+// API routes
 
 // POST /members (Create a new member)
 pub fn create_member(req: Request, db: pog.Connection) -> Response {
@@ -99,19 +129,19 @@ pub fn delete_member(
 
 // POST /auth/login (Create a session)
 pub fn login(req: Request, db: pog.Connection) -> Response {
-  use body <- wisp.require_json(req)
+  use formdata <- wisp.require_form(req)
 
-  decode_login_request(body)
+  decode_form_login_request(formdata.values)
   |> result.try(fn(data) {
     members.authenticate(db, data.email_address, data.password)
   })
   |> result.map(fn(member) {
-    let success_json =
-      json.object([#("message", json.string("Login successful"))])
-    wisp.json_response(json.to_string_tree(success_json), 200)
+    wisp.redirect("/auth/me")
     |> session.create_session(req, member.membership_id, member.role)
   })
-  |> result.map_error(errors.error_to_response)
+  |> result.map_error(fn(err) {
+    wisp.redirect("/?error=" <> uri.percent_encode(errors.to_string(err)))
+  })
   |> result.unwrap_both
 }
 
@@ -145,17 +175,23 @@ type LoginRequest {
   LoginRequest(email_address: String, password: String)
 }
 
-fn decode_login_request(data: Dynamic) -> Result(LoginRequest, errors.AppError) {
-  let decoder = {
-    use email_address <- decode.field("email_address", decode.string)
-    use password <- decode.field("password", decode.string)
-    decode.success(LoginRequest(
-      email_address: email_address,
-      password: password,
+fn decode_form_login_request(
+  formdata: List(#(String, String)),
+) -> Result(LoginRequest, errors.AppError) {
+  let get_field = fn(field_name: String) -> Result(String, errors.AppError) {
+    formdata
+    |> utils.find_first(fn(pair) { pair.0 == field_name })
+    |> result.map(fn(pair) { pair.1 })
+    |> result.replace_error(errors.validation_error(
+      "Missing field: " <> field_name,
     ))
   }
-  decode.run(data, decoder)
-  |> result.map_error(fn(err) {
-    errors.validation_error(utils.decode_errors_to_string(err))
-  })
+
+  use email_address <- result.try(get_field("email_address"))
+  use password <- result.try(get_field("password"))
+
+  case email_address == "" || password == "" {
+    True -> Error(errors.validation_error("Email and password cannot be empty"))
+    False -> Ok(LoginRequest(email_address: email_address, password: password))
+  }
 }

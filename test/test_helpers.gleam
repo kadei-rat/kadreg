@@ -75,6 +75,8 @@ pub fn set_session_cookie(
   member: members.MemberRecord,
 ) -> wisp.Request {
   let session_value =
-    membership_id.to_string(member.membership_id) <> ":" <> role.to_string(member.role)
+    membership_id.to_string(member.membership_id)
+    <> ":"
+    <> role.to_string(member.role)
   testing.set_cookie(request, "kadreg_session", session_value, wisp.Signed)
 }

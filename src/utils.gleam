@@ -16,3 +16,14 @@ pub fn decode_errors_to_string(errors: List(decode.DecodeError)) -> String {
   })
   |> string.join(". ")
 }
+
+pub fn find_first(list: List(a), predicate: fn(a) -> Bool) -> Result(a, Nil) {
+  case list {
+    [] -> Error(Nil)
+    [first, ..rest] ->
+      case predicate(first) {
+        True -> Ok(first)
+        False -> find_first(rest, predicate)
+      }
+  }
+}

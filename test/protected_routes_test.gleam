@@ -1,3 +1,4 @@
+import config
 import gleam/string
 import models/membership_id
 import router
@@ -7,10 +8,11 @@ import wisp/testing
 
 pub fn protected_route_without_session_test() {
   let assert Ok(conn) = test_helpers.setup_test_db()
+  let conf = config.load()
 
   // Test GET /members without session
   let req = testing.get("/members", [])
-  let response = router.handle_request(req, conn)
+  let response = router.handle_request(req, conf, conn)
 
   // Should return 401 Unauthorized
   let assert 401 = response.status
@@ -20,13 +22,14 @@ pub fn protected_route_without_session_test() {
 
 pub fn protected_route_invalid_session_test() {
   let assert Ok(conn) = test_helpers.setup_test_db()
+  let conf = config.load()
 
   // Test GET /members with invalid session cookie
   let req =
     testing.get("/members", [])
     |> testing.set_cookie("kadreg_session", "INVALID_ID", wisp.Signed)
 
-  let response = router.handle_request(req, conn)
+  let response = router.handle_request(req, conf, conn)
 
   // Should return 401 Unauthorized
   let assert 401 = response.status
@@ -37,6 +40,7 @@ pub fn protected_route_invalid_session_test() {
 pub fn protected_get_member_route_test() {
   let assert Ok(conn) = test_helpers.setup_test_db()
   let test_email = "test_get_member@example.com"
+  let conf = config.load()
 
   // Clean up and create test member
   let _ = test_helpers.cleanup_test_member(conn, test_email)
@@ -49,7 +53,7 @@ pub fn protected_get_member_route_test() {
     testing.get("/members/" <> member_id_str, [])
     |> test_helpers.set_session_cookie(member)
 
-  let response = router.handle_request(req, conn)
+  let response = router.handle_request(req, conf, conn)
 
   // Should succeed and return member data
   let assert 200 = response.status

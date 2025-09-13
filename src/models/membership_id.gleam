@@ -44,13 +44,11 @@ fn validate_length(id_str: String) -> Result(String, AppError) {
   case string.length(id_str) == total_length {
     True -> Ok(id_str)
     False ->
-      Error(
-        errors.validation_error(
-          "Invalid membership ID length: expected "
-          <> int.to_string(total_length)
-          <> " characters",
-        )
-      )
+      Error(errors.validation_error(
+        "Invalid membership ID length: expected "
+        <> int.to_string(total_length)
+        <> " characters",
+      ))
   }
 }
 
@@ -58,7 +56,10 @@ fn validate_prefix(id_str: String) -> Result(String, AppError) {
   let actual_prefix = string.slice(id_str, 0, 3)
   case actual_prefix == prefix {
     True -> Ok(id_str)
-    False -> Error(errors.validation_error("Invalid membership ID prefix: expected '" <> prefix <> "'"))
+    False ->
+      Error(errors.validation_error(
+        "Invalid membership ID prefix: expected '" <> prefix <> "'",
+      ))
   }
 }
 
@@ -67,7 +68,9 @@ fn parse_number_part(id_str: String) -> Result(Int, AppError) {
   case int.parse(number_part) {
     Ok(num) -> Ok(num)
     Error(_) ->
-      Error(errors.validation_error("Invalid membership ID number part: '" <> number_part <> "'"))
+      Error(errors.validation_error(
+        "Invalid membership ID number part: '" <> number_part <> "'",
+      ))
   }
 }
 
