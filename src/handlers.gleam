@@ -15,7 +15,7 @@ import wisp.{type Request, type Response}
 // Handlers
 
 // POST /members (Create a new member)
-pub fn create_member_handler(req: Request, db: pog.Connection) -> Response {
+pub fn create_member(req: Request, db: pog.Connection) -> Response {
   use session_data <- session.require_session(req)
   use body <- wisp.require_json(req)
 
@@ -33,7 +33,7 @@ pub fn create_member_handler(req: Request, db: pog.Connection) -> Response {
 }
 
 // GET /members/<membership_id> (Get a specific member)
-pub fn get_member_handler(
+pub fn get_member(
   req: Request,
   db: pog.Connection,
   membership_id_str: String,
@@ -54,7 +54,7 @@ pub fn get_member_handler(
 }
 
 // GET /members (List all members)
-pub fn list_members_handler(req: Request, db: pog.Connection) -> Response {
+pub fn list_members(req: Request, db: pog.Connection) -> Response {
   use session_data <- session.require_session(req)
 
   authorization.can_list_members(session_data)
@@ -67,7 +67,7 @@ pub fn list_members_handler(req: Request, db: pog.Connection) -> Response {
 }
 
 // Update a member - PATCH /members
-pub fn update_member_handler(req: Request, _db: pog.Connection) -> Response {
+pub fn update_member(req: Request, _db: pog.Connection) -> Response {
   use _body <- wisp.require_json(req)
 
   let error_json =
@@ -76,7 +76,7 @@ pub fn update_member_handler(req: Request, _db: pog.Connection) -> Response {
 }
 
 // POST /members/<membership_id>/delete (Delete a member)
-pub fn delete_member_handler(
+pub fn delete_member(
   req: Request,
   db: pog.Connection,
   membership_id_str: String,
@@ -98,7 +98,7 @@ pub fn delete_member_handler(
 }
 
 // POST /auth/login (Create a session)
-pub fn login_handler(req: Request, db: pog.Connection) -> Response {
+pub fn login(req: Request, db: pog.Connection) -> Response {
   use body <- wisp.require_json(req)
 
   decode_login_request(body)
@@ -116,7 +116,7 @@ pub fn login_handler(req: Request, db: pog.Connection) -> Response {
 }
 
 // POST /auth/logout (Destroy session)
-pub fn logout_handler(req: Request, _db: pog.Connection) -> Response {
+pub fn logout(req: Request, _db: pog.Connection) -> Response {
   let success_json =
     json.object([#("message", json.string("Logout successful"))])
   wisp.json_response(json.to_string_tree(success_json), 200)
@@ -124,7 +124,7 @@ pub fn logout_handler(req: Request, _db: pog.Connection) -> Response {
 }
 
 // GET /auth/me (Get current session info)
-pub fn me_handler(req: Request, _db: pog.Connection) -> Response {
+pub fn me(req: Request, _db: pog.Connection) -> Response {
   case session.get_session(req) {
     Ok(session_data) -> {
       let user_json =

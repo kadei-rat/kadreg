@@ -25,7 +25,7 @@ pub fn login_success_and_me_test() {
     ])
 
   let login_req = testing.post_json("/auth/login", [], login_json)
-  let login_response = handlers.login_handler(login_req, conn)
+  let login_response = handlers.login(login_req, conn)
 
   // Check login response
   let assert 200 = login_response.status
@@ -49,7 +49,7 @@ pub fn login_success_and_me_test() {
 
   // Now test /auth/me with the actual session cookie
   let me_req = testing.get("/auth/me", [#("cookie", session_cookie)])
-  let me_response = handlers.me_handler(me_req, conn)
+  let me_response = handlers.me(me_req, conn)
 
   // Check me response
   let assert 200 = me_response.status
@@ -78,7 +78,7 @@ pub fn login_invalid_credentials_test() {
     ])
 
   let req = testing.post_json("/auth/login", [], login_json)
-  let response = handlers.login_handler(req, conn)
+  let response = handlers.login(req, conn)
 
   // Check response
   let assert 401 = response.status
@@ -100,7 +100,7 @@ pub fn login_invalid_email_test() {
     ])
 
   let req = testing.post_json("/auth/login", [], login_json)
-  let response = handlers.login_handler(req, conn)
+  let response = handlers.login(req, conn)
 
   // Check response
   let assert 401 = response.status
@@ -116,7 +116,7 @@ pub fn login_malformed_request_test() {
     json.object([#("email_address", json.string("test@example.com"))])
 
   let req = testing.post_json("/auth/login", [], login_json)
-  let response = handlers.login_handler(req, conn)
+  let response = handlers.login(req, conn)
 
   // Check response - malformed request should return 400, not 401
   let assert 400 = response.status
@@ -128,7 +128,7 @@ pub fn logout_success_test() {
   let assert Ok(conn) = setup_test_db()
 
   let req = testing.post("/auth/logout", [], "")
-  let response = handlers.logout_handler(req, conn)
+  let response = handlers.logout(req, conn)
 
   // Check response
   let assert 200 = response.status
@@ -154,7 +154,7 @@ pub fn logout_no_session_test() {
 
   // Should work even without existing session
   let req = testing.post("/auth/logout", [], "")
-  let response = handlers.logout_handler(req, conn)
+  let response = handlers.logout(req, conn)
 
   let assert 200 = response.status
   let body = testing.string_body(response)
@@ -165,7 +165,7 @@ pub fn me_without_session_test() {
   let assert Ok(conn) = setup_test_db()
 
   let req = testing.get("/auth/me", [])
-  let response = handlers.me_handler(req, conn)
+  let response = handlers.me(req, conn)
 
   // Check response
   let assert 401 = response.status
@@ -180,7 +180,7 @@ pub fn me_invalid_session_test() {
     testing.get("/auth/me", [])
     |> testing.set_cookie("kadreg_session", "INVALID", wisp.Signed)
 
-  let response = handlers.me_handler(req, conn)
+  let response = handlers.me(req, conn)
 
   // Check response
   let assert 401 = response.status

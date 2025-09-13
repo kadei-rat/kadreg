@@ -7,17 +7,17 @@ pub fn handle_request(req: Request, db: pog.Connection) -> Response {
   use req <- middleware(req)
 
   case wisp.path_segments(req), req.method {
-    // Authentication routes (no session required)
-    ["auth", "login"], Post -> handlers.login_handler(req, db)
-    ["auth", "logout"], Post -> handlers.logout_handler(req, db)
-    ["auth", "me"], Get -> handlers.me_handler(req, db)
-    ["members"], Post -> handlers.create_member_handler(req, db)
-    ["members"], Get -> handlers.list_members_handler(req, db)
-    ["members"], Patch -> handlers.update_member_handler(req, db)
+    // api
+    ["auth", "login"], Post -> handlers.login(req, db)
+    ["auth", "logout"], Post -> handlers.logout(req, db)
+    ["auth", "me"], Get -> handlers.me(req, db)
+    ["members"], Post -> handlers.create_member(req, db)
+    ["members"], Get -> handlers.list_members(req, db)
+    ["members"], Patch -> handlers.update_member(req, db)
     ["members", membership_id], Get ->
-      handlers.get_member_handler(req, db, membership_id)
+      handlers.get_member(req, db, membership_id)
     ["members", membership_id, "delete"], Post ->
-      handlers.delete_member_handler(req, db, membership_id)
+      handlers.delete_member(req, db, membership_id)
 
     ["health"], Get -> {
       wisp.response(200)
