@@ -46,8 +46,9 @@ fn validate_length(id_str: String) -> Result(String, AppError) {
     False ->
       Error(errors.validation_error(
         "Invalid membership ID length: expected "
-        <> int.to_string(total_length)
-        <> " characters",
+          <> int.to_string(total_length)
+          <> " characters",
+        "Length validation failed for: " <> id_str,
       ))
   }
 }
@@ -59,6 +60,7 @@ fn validate_prefix(id_str: String) -> Result(String, AppError) {
     False ->
       Error(errors.validation_error(
         "Invalid membership ID prefix: expected '" <> prefix <> "'",
+        "Prefix validation failed for: " <> id_str,
       ))
   }
 }
@@ -70,6 +72,7 @@ fn parse_number_part(id_str: String) -> Result(Int, AppError) {
     Error(_) ->
       Error(errors.validation_error(
         "Invalid membership ID number part: '" <> number_part <> "'",
+        "Number parsing failed for: " <> id_str,
       ))
   }
 }

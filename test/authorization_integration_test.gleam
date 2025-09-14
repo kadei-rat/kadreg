@@ -197,4 +197,3 @@ pub fn regstaff_can_access_others_details_test() {
   let _ = cleanup_test_member(conn, regstaff_email)
   let _ = cleanup_test_member(conn, member_email)
 }
-

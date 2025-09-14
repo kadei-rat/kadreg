@@ -31,7 +31,8 @@ pub fn signup_success_test() {
   let assert 303 = response.status
   let location_header = get_location_header(response)
   let assert True = string.contains(location_header, "/?success=")
-  let assert True = string.contains(location_header, "Account%20created%20successfully")
+  let assert True =
+    string.contains(location_header, "Account%20created%20successfully")
 
   // Cleanup
   let _ = cleanup_test_member(conn, test_email)
@@ -49,7 +50,8 @@ pub fn signup_validation_failure_test() {
     #("handle", "shortpass"),
     #("postal_address", "456 Short St"),
     #("phone_number", "555-5678"),
-    #("password", "short"), // This should fail validation (< 12 chars)
+    #("password", "short"),
+    // This should fail validation (< 12 chars)
   ]
 
   // Submit signup form
@@ -60,7 +62,11 @@ pub fn signup_validation_failure_test() {
   let assert 303 = response.status
   let location_header = get_location_header(response)
   let assert True = string.contains(location_header, "/signup?error=")
-  let assert True = string.contains(location_header, "Password%20must%20be%20at%20least%2012%20characters")
+  let assert True =
+    string.contains(
+      location_header,
+      "Password%20must%20be%20at%20least%2012%20characters",
+    )
 }
 
 pub fn signup_missing_field_test() {

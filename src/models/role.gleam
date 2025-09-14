@@ -25,6 +25,10 @@ pub fn from_string(str: String) -> Result(Role, AppError) {
     "RegStaff" -> Ok(RegStaff)
     "Director" -> Ok(Director)
     "Sysadmin" -> Ok(Sysadmin)
-    _ -> Error(errors.validation_error("Invalid role: " <> str))
+    _ ->
+      Error(errors.validation_error(
+        "Invalid role: " <> str,
+        "Role parsing failed for: " <> str,
+      ))
   }
 }

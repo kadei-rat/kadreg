@@ -4,10 +4,12 @@ import errors
 import frontend/layout
 import frontend/login_page
 import frontend/signup_page
+import gleam/http
 import gleam/json
 import gleam/option.{type Option, None, Some}
 import gleam/result
 import gleam/uri
+import logging
 import lustre/element
 import models/members
 import models/membership_id
@@ -65,7 +67,7 @@ pub fn create_member(
   use formdata <- wisp.require_form(req)
 
   decode_form_create_member_request(formdata.values)
-  |> members.validate_member_request()
+  |> result.try(members.validate_member_request)
   |> result.try(members.create(db, _))
   |> result.map(fn(_member) {
     wisp.redirect(
@@ -73,8 +75,11 @@ pub fn create_member(
       <> uri.percent_encode("Account created successfully! Please login."),
     )
   })
+  |> utils.spy_on_result(log_request("create_member", req, _))
   |> result.map_error(fn(err) {
-    wisp.redirect("/signup?error=" <> uri.percent_encode(errors.to_string(err)))
+    wisp.redirect(
+      "/signup?error=" <> uri.percent_encode(errors.to_public_string(err)),
+    )
   })
   |> result.unwrap_both
 }
@@ -95,6 +100,7 @@ pub fn get_member(
   |> result.try(members.get(db, _))
   |> result.map(members.to_json)
   |> result.map(json.to_string_tree)
+  |> utils.spy_on_result(log_request("get_member", req, _))
   |> result.map(wisp.json_response(_, 200))
   |> result.map_error(errors.error_to_response)
   |> result.unwrap_both
@@ -109,6 +115,7 @@ pub fn list_members(req: Request, db: pog.Connection) -> Response {
   |> result.map(json.array(_, members.to_json))
   |> result.map(json.to_string_tree)
   |> result.map(wisp.json_response(_, 200))
+  |> utils.spy_on_result(log_request("list_members", req, _))
   |> result.map_error(errors.error_to_response)
   |> result.unwrap_both
 }
@@ -140,6 +147,7 @@ pub fn delete_member(
   })
   |> result.try(members.delete(db, _, purge_pii))
   |> result.map(fn(_) { wisp.ok() })
+  |> utils.spy_on_result(log_request("delete_member", req, _))
   |> result.map_error(errors.error_to_response)
   |> result.unwrap_both
 }
@@ -156,8 +164,11 @@ pub fn login(req: Request, db: pog.Connection) -> Response {
     wisp.redirect("/auth/me")
     |> session.create_session(req, member.membership_id, member.role)
   })
+  |> utils.spy_on_result(log_request("login", req, _))
   |> result.map_error(fn(err) {
-    wisp.redirect("/?error=" <> uri.percent_encode(errors.to_string(err)))
+    wisp.redirect(
+      "/?error=" <> uri.percent_encode(errors.to_public_string(err)),
+    )
   })
   |> result.unwrap_both
 }
@@ -172,7 +183,9 @@ pub fn logout(req: Request, _db: pog.Connection) -> Response {
 
 // GET /auth/me (Get current session info)
 pub fn me(req: Request, _db: pog.Connection) -> Response {
-  case session.get_session(req) {
+  let result = session.get_session(req)
+  log_request("me", req, result)
+  case result {
     Ok(session_data) -> {
       let user_json =
         json.object([
@@ -188,6 +201,25 @@ pub fn me(req: Request, _db: pog.Connection) -> Response {
   }
 }
 
+fn log_request(
+  handler_name: String,
+  req: Request,
+  result: Result(a, errors.AppError),
+) -> Nil {
+  let method = http.method_to_string(req.method)
+  let path = req.path
+
+  let message = case result {
+    Error(err) -> {
+      let error_details = errors.to_internal_string(err)
+      method <> " " <> path <> " (" <> handler_name <> ") - " <> error_details
+    }
+    Ok(_) -> method <> " " <> path <> " (" <> handler_name <> ") - success :D"
+  }
+
+  logging.log(logging.Info, message)
+}
+
 type LoginRequest {
   LoginRequest(email_address: String, password: String)
 }
@@ -201,6 +233,7 @@ fn decode_form_login_request(
     |> result.map(fn(pair) { pair.1 })
     |> result.replace_error(errors.validation_error(
       "Missing field: " <> field_name,
+      "Field missing from form data: " <> field_name,
     ))
   }
 
@@ -208,14 +241,18 @@ fn decode_form_login_request(
   use password <- result.try(get_field("password"))
 
   case email_address == "" || password == "" {
-    True -> Error(errors.validation_error("Email and password cannot be empty"))
+    True ->
+      Error(errors.validation_error(
+        "Email and password cannot be empty",
+        "Empty email or password in login request",
+      ))
     False -> Ok(LoginRequest(email_address: email_address, password: password))
   }
 }
 
 fn decode_form_create_member_request(
   formdata: List(#(String, String)),
-) -> members.CreateMemberRequest {
+) -> Result(members.CreateMemberRequest, errors.AppError) {
   use email_address <- result.try(get_field(formdata, "email_address"))
   use legal_name <- result.try(get_field(formdata, "legal_name"))
   use date_of_birth <- result.try(get_field(formdata, "date_of_birth"))
@@ -224,7 +261,7 @@ fn decode_form_create_member_request(
   use phone_number <- result.try(get_field(formdata, "phone_number"))
   use password <- result.try(get_field(formdata, "password"))
 
-  members.CreateMemberRequest(
+  Ok(members.CreateMemberRequest(
     email_address: email_address,
     legal_name: legal_name,
     date_of_birth: date_of_birth,
@@ -233,7 +270,7 @@ fn decode_form_create_member_request(
     phone_number: phone_number,
     password: password,
     role: None,
-  )
+  ))
 }
 
 fn val_from_querystring(
@@ -255,5 +292,6 @@ fn get_field(
   |> result.map(fn(pair) { pair.1 })
   |> result.replace_error(errors.validation_error(
     "Missing field: " <> field_name,
+    "Field missing from form data: " <> field_name,
   ))
 }

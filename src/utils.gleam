@@ -27,3 +27,11 @@ pub fn find_first(list: List(a), predicate: fn(a) -> Bool) -> Result(a, Nil) {
       }
   }
 }
+
+pub fn spy_on_result(
+  result: Result(a, e),
+  fun: fn(Result(a, e)) -> Nil,
+) -> Result(a, e) {
+  fun(result)
+  result
+}

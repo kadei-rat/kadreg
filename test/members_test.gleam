@@ -181,5 +181,6 @@ pub fn validate_member_request_short_password_test() {
 
   let assert Error(errors.ValidationError(public: msg, internal: _)) =
     members.validate_member_request(request)
-  let assert True = string.contains(msg, "Password must be at least 12 characters")
+  let assert True =
+    string.contains(msg, "Password must be at least 12 characters")
 }
