@@ -3,8 +3,9 @@ import config
 import errors
 import frontend/layout
 import frontend/login_page
+import frontend/signup_page
 import gleam/json
-import gleam/option.{None, Some}
+import gleam/option.{type Option, None, Some}
 import gleam/result
 import gleam/uri
 import lustre/element
@@ -29,14 +30,25 @@ pub fn login_page(
   _db: pog.Connection,
   conf: config.Config,
 ) -> Response {
-  let error_msg = case
-    wisp.get_query(req) |> utils.find_first(fn(pair) { pair.0 == "error" })
-  {
-    Ok(#(_, msg)) -> Some(msg)
-    Error(_) -> None
-  }
+  let query_params = wisp.get_query(req)
+  let error_msg = val_from_querystring(query_params, "error")
+  let success_msg = val_from_querystring(query_params, "success")
 
-  [login_page.root_with_error(error_msg)]
+  [login_page.root(error_msg, success_msg)]
+  |> layout.layout(conf.con_name)
+  |> element.to_document_string_tree
+  |> wisp.html_response(200)
+}
+
+pub fn signup_page(
+  req: Request,
+  _db: pog.Connection,
+  conf: config.Config,
+) -> Response {
+  let query_params = wisp.get_query(req)
+  let error_msg = val_from_querystring(query_params, "error")
+
+  [signup_page.root(error_msg)]
   |> layout.layout(conf.con_name)
   |> element.to_document_string_tree
   |> wisp.html_response(200)
@@ -45,20 +57,25 @@ pub fn login_page(
 // API routes
 
 // POST /members (Create a new member)
-pub fn create_member(req: Request, db: pog.Connection) -> Response {
-  use session_data <- session.require_session(req)
-  use body <- wisp.require_json(req)
+pub fn create_member(
+  req: Request,
+  db: pog.Connection,
+  _conf: config.Config,
+) -> Response {
+  use formdata <- wisp.require_form(req)
 
-  members.decode_create_member_request(body)
-  |> result.try(fn(create_req) {
-    authorization.can_create_members(session_data)
-    |> result.replace(create_req)
-  })
+  decode_form_create_member_request(formdata.values)
+  |> members.validate_member_request()
   |> result.try(members.create(db, _))
-  |> result.map(members.to_json)
-  |> result.map(json.to_string_tree)
-  |> result.map(wisp.json_response(_, 201))
-  |> result.map_error(errors.error_to_response)
+  |> result.map(fn(_member) {
+    wisp.redirect(
+      "/?success="
+      <> uri.percent_encode("Account created successfully! Please login."),
+    )
+  })
+  |> result.map_error(fn(err) {
+    wisp.redirect("/signup?error=" <> uri.percent_encode(errors.to_string(err)))
+  })
   |> result.unwrap_both
 }
 
@@ -194,4 +211,49 @@ fn decode_form_login_request(
     True -> Error(errors.validation_error("Email and password cannot be empty"))
     False -> Ok(LoginRequest(email_address: email_address, password: password))
   }
+}
+
+fn decode_form_create_member_request(
+  formdata: List(#(String, String)),
+) -> members.CreateMemberRequest {
+  use email_address <- result.try(get_field(formdata, "email_address"))
+  use legal_name <- result.try(get_field(formdata, "legal_name"))
+  use date_of_birth <- result.try(get_field(formdata, "date_of_birth"))
+  use handle <- result.try(get_field(formdata, "handle"))
+  use postal_address <- result.try(get_field(formdata, "postal_address"))
+  use phone_number <- result.try(get_field(formdata, "phone_number"))
+  use password <- result.try(get_field(formdata, "password"))
+
+  members.CreateMemberRequest(
+    email_address: email_address,
+    legal_name: legal_name,
+    date_of_birth: date_of_birth,
+    handle: handle,
+    postal_address: postal_address,
+    phone_number: phone_number,
+    password: password,
+    role: None,
+  )
+}
+
+fn val_from_querystring(
+  query_params: List(#(String, String)),
+  key: String,
+) -> Option(String) {
+  case query_params |> utils.find_first(fn(pair) { pair.0 == key }) {
+    Ok(#(_, msg)) -> Some(msg)
+    Error(_) -> None
+  }
+}
+
+fn get_field(
+  formdata: List(#(String, String)),
+  field_name: String,
+) -> Result(String, errors.AppError) {
+  formdata
+  |> utils.find_first(fn(pair) { pair.0 == field_name })
+  |> result.map(fn(pair) { pair.1 })
+  |> result.replace_error(errors.validation_error(
+    "Missing field: " <> field_name,
+  ))
 }

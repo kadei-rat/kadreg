@@ -1,5 +1,4 @@
 import errors
-import gleam/dynamic/decode
 import gleam/json
 import gleam/option
 import gleam/string
@@ -40,88 +39,147 @@ pub fn encode_member_test() {
   let assert False = string.contains(encoded_str, "password_hash")
 }
 
-pub fn decode_create_member_request_test() {
-  let json_data =
-    json.object([
-      #("email_address", json.string("test@example.com")),
-      #("legal_name", json.string("John Smith")),
-      #("date_of_birth", json.string("1985-03-10")),
-      #("handle", json.string("johnsmith")),
-      #("postal_address", json.string("456 Oak Ave")),
-      #("phone_number", json.string("555-5678")),
-      #("password", json.string("secret123")),
-      #("role", json.string("Staff")),
-    ])
+pub fn validate_member_request_valid_test() {
+  let request =
+    members.CreateMemberRequest(
+      email_address: "test@example.com",
+      legal_name: "John Smith",
+      date_of_birth: "1985-03-10",
+      handle: "johnsmith",
+      postal_address: "456 Oak Ave",
+      phone_number: "555-5678",
+      password: "secretpassword123",
+      role: option.Some(role.Staff),
+    )
 
-  let assert Ok(dynamic_data) =
-    json.parse(json.to_string(json_data), decode.dynamic)
-  let assert Ok(request) = members.decode_create_member_request(dynamic_data)
-
-  let assert "test@example.com" = request.email_address
-  let assert "John Smith" = request.legal_name
-  let assert "1985-03-10" = request.date_of_birth
-  let assert "johnsmith" = request.handle
-  let assert "456 Oak Ave" = request.postal_address
-  let assert "555-5678" = request.phone_number
-  let assert "secret123" = request.password
-  let assert option.Some(role.Staff) = request.role
+  let assert Ok(validated_request) = members.validate_member_request(request)
+  let assert "test@example.com" = validated_request.email_address
+  let assert "John Smith" = validated_request.legal_name
+  let assert "secretpassword123" = validated_request.password
 }
 
-pub fn decode_create_member_request_with_default_member_role_test() {
-  let json_data =
-    json.object([
-      #("email_address", json.string("test@example.com")),
-      #("legal_name", json.string("John Smith")),
-      #("date_of_birth", json.string("1985-03-10")),
-      #("handle", json.string("johnsmith")),
-      #("postal_address", json.string("456 Oak Ave")),
-      #("phone_number", json.string("555-5678")),
-      #("password", json.string("secret123")),
-      #("role", json.string("Member")),
-    ])
+pub fn validate_member_request_invalid_email_test() {
+  let request =
+    members.CreateMemberRequest(
+      email_address: "invalid-email",
+      legal_name: "John Smith",
+      date_of_birth: "1985-03-10",
+      handle: "johnsmith",
+      postal_address: "456 Oak Ave",
+      phone_number: "555-5678",
+      password: "secretpassword123",
+      role: option.Some(role.Staff),
+    )
 
-  let assert Ok(dynamic_data) =
-    json.parse(json.to_string(json_data), decode.dynamic)
-  let assert Ok(request) = members.decode_create_member_request(dynamic_data)
-
-  let assert option.Some(role.Member) = request.role
+  let assert Error(errors.ValidationError(public: msg, internal: _)) =
+    members.validate_member_request(request)
+  let assert True = string.contains(msg, "Invalid email address")
 }
 
-pub fn decode_create_member_request_missing_field_test() {
-  let json_data =
-    json.object([
-      #("email_address", json.string("test@example.com")),
-      // Missing legal_name
-      #("date_of_birth", json.string("1985-03-10")),
-      #("handle", json.string("johnsmith")),
-      #("postal_address", json.string("456 Oak Ave")),
-      #("phone_number", json.string("555-5678")),
-      #("password", json.string("secret123")),
-      #("role", json.string("Member")),
-    ])
+pub fn validate_member_request_empty_legal_name_test() {
+  let request =
+    members.CreateMemberRequest(
+      email_address: "test@example.com",
+      legal_name: "",
+      date_of_birth: "1985-03-10",
+      handle: "johnsmith",
+      postal_address: "456 Oak Ave",
+      phone_number: "555-5678",
+      password: "secretpassword123",
+      role: option.Some(role.Staff),
+    )
 
-  let assert Ok(dynamic_data) =
-    json.parse(json.to_string(json_data), decode.dynamic)
-  let assert Error(errors.ValidationError(msg)) =
-    members.decode_create_member_request(dynamic_data)
-  let assert True = string.contains(msg, "legal_name")
+  let assert Error(errors.ValidationError(public: msg, internal: _)) =
+    members.validate_member_request(request)
+  let assert True = string.contains(msg, "Must specify a legal name")
 }
 
-pub fn decode_create_member_request_invalid_role_test() {
-  let json_data =
-    json.object([
-      #("email_address", json.string("test@example.com")),
-      #("legal_name", json.string("John Smith")),
-      #("date_of_birth", json.string("1985-03-10")),
-      #("handle", json.string("johnsmith")),
-      #("postal_address", json.string("456 Oak Ave")),
-      #("phone_number", json.string("555-5678")),
-      #("password", json.string("secret123")),
-      #("role", json.string("InvalidRole")),
-    ])
+pub fn validate_member_request_empty_phone_number_test() {
+  let request =
+    members.CreateMemberRequest(
+      email_address: "test@example.com",
+      legal_name: "John Smith",
+      date_of_birth: "1985-03-10",
+      handle: "johnsmith",
+      postal_address: "456 Oak Ave",
+      phone_number: "",
+      password: "secretpassword123",
+      role: option.Some(role.Staff),
+    )
 
-  let assert Ok(dynamic_data) =
-    json.parse(json.to_string(json_data), decode.dynamic)
-  let assert Ok(request) = members.decode_create_member_request(dynamic_data)
-  let assert option.None = request.role
+  let assert Error(errors.ValidationError(public: msg, internal: _)) =
+    members.validate_member_request(request)
+  let assert True = string.contains(msg, "Must specify a phone number")
+}
+
+pub fn validate_member_request_empty_handle_test() {
+  let request =
+    members.CreateMemberRequest(
+      email_address: "test@example.com",
+      legal_name: "John Smith",
+      date_of_birth: "1985-03-10",
+      handle: "",
+      postal_address: "456 Oak Ave",
+      phone_number: "555-5678",
+      password: "secretpassword123",
+      role: option.Some(role.Staff),
+    )
+
+  let assert Error(errors.ValidationError(public: msg, internal: _)) =
+    members.validate_member_request(request)
+  let assert True = string.contains(msg, "Must specify a handle")
+}
+
+pub fn validate_member_request_empty_postal_address_test() {
+  let request =
+    members.CreateMemberRequest(
+      email_address: "test@example.com",
+      legal_name: "John Smith",
+      date_of_birth: "1985-03-10",
+      handle: "johnsmith",
+      postal_address: "",
+      phone_number: "555-5678",
+      password: "secretpassword123",
+      role: option.Some(role.Staff),
+    )
+
+  let assert Error(errors.ValidationError(public: msg, internal: _)) =
+    members.validate_member_request(request)
+  let assert True = string.contains(msg, "Must specify a postal address")
+}
+
+pub fn validate_member_request_empty_date_of_birth_test() {
+  let request =
+    members.CreateMemberRequest(
+      email_address: "test@example.com",
+      legal_name: "John Smith",
+      date_of_birth: "",
+      handle: "johnsmith",
+      postal_address: "456 Oak Ave",
+      phone_number: "555-5678",
+      password: "secretpassword123",
+      role: option.Some(role.Staff),
+    )
+
+  let assert Error(errors.ValidationError(public: msg, internal: _)) =
+    members.validate_member_request(request)
+  let assert True = string.contains(msg, "Must specify a date of birth")
+}
+
+pub fn validate_member_request_short_password_test() {
+  let request =
+    members.CreateMemberRequest(
+      email_address: "test@example.com",
+      legal_name: "John Smith",
+      date_of_birth: "1985-03-10",
+      handle: "johnsmith",
+      postal_address: "456 Oak Ave",
+      phone_number: "555-5678",
+      password: "short",
+      role: option.Some(role.Staff),
+    )
+
+  let assert Error(errors.ValidationError(public: msg, internal: _)) =
+    members.validate_member_request(request)
+  let assert True = string.contains(msg, "Password must be at least 12 characters")
 }

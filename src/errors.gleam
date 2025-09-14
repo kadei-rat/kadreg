@@ -7,7 +7,7 @@ pub type AppError {
   AuthenticationError(String)
   // 401 - User not authenticated or invalid session
   ValidationError(String)
-  // 400 - Bad request data  
+  // 400 - Bad request data
   NotFoundError(String)
   // 404 - Resource doesn't exist
   InternalError(String)

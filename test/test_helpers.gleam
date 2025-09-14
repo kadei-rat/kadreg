@@ -1,5 +1,6 @@
 import config
 import database
+import gleam/list
 import gleam/option
 import gleam/result
 import models/members
@@ -79,4 +80,19 @@ pub fn set_session_cookie(
     <> ":"
     <> role.to_string(member.role)
   testing.set_cookie(request, "kadreg_session", session_value, wisp.Signed)
+}
+
+pub fn get_location_header(response: wisp.Response) -> String {
+  case response.headers {
+    [] -> "no-location-header"
+    headers -> {
+      headers
+      |> list.find(fn(header) {
+        let #(name, _value) = header
+        name == "location"
+      })
+      |> result.map(fn(header) { header.1 })
+      |> result.unwrap("no-location-header")
+    }
+  }
 }

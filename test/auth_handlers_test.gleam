@@ -3,7 +3,9 @@ import gleam/result
 import gleam/string
 import handlers
 import models/membership_id
-import test_helpers.{cleanup_test_member, create_test_member, setup_test_db}
+import test_helpers.{
+  cleanup_test_member, create_test_member, get_location_header, setup_test_db,
+}
 import wisp
 import wisp/testing
 
@@ -27,18 +29,7 @@ pub fn login_success_and_me_test() {
 
   // Check login response - should be a redirect
   let assert 303 = login_response.status
-  let location_header = case login_response.headers {
-    [] -> "no-location-header"
-    headers -> {
-      headers
-      |> list.find(fn(header) {
-        let #(name, _value) = header
-        name == "location"
-      })
-      |> result.map(fn(header) { header.1 })
-      |> result.unwrap("no-location-header")
-    }
-  }
+  let location_header = get_location_header(login_response)
   let assert True = string.contains(location_header, "/auth/me")
 
   // Extract session cookie from login response
@@ -90,18 +81,7 @@ pub fn login_invalid_credentials_test() {
 
   // Check response - should redirect to root with error parameter
   let assert 303 = response.status
-  let location_header = case response.headers {
-    [] -> "no-location-header"
-    headers -> {
-      headers
-      |> list.find(fn(header) {
-        let #(name, _value) = header
-        name == "location"
-      })
-      |> result.map(fn(header) { header.1 })
-      |> result.unwrap("no-location-header")
-    }
-  }
+  let location_header = get_location_header(response)
   let assert True = string.contains(location_header, "/?error=")
 
   // Cleanup
@@ -122,18 +102,7 @@ pub fn login_invalid_email_test() {
 
   // Check response - should redirect to root with error parameter
   let assert 303 = response.status
-  let location_header = case response.headers {
-    [] -> "no-location-header"
-    headers -> {
-      headers
-      |> list.find(fn(header) {
-        let #(name, _value) = header
-        name == "location"
-      })
-      |> result.map(fn(header) { header.1 })
-      |> result.unwrap("no-location-header")
-    }
-  }
+  let location_header = get_location_header(response)
   let assert True = string.contains(location_header, "/?error=")
 }
 
@@ -150,18 +119,7 @@ pub fn login_malformed_request_test() {
 
   // Check response - should redirect to root with error parameter
   let assert 303 = response.status
-  let location_header = case response.headers {
-    [] -> "no-location-header"
-    headers -> {
-      headers
-      |> list.find(fn(header) {
-        let #(name, _value) = header
-        name == "location"
-      })
-      |> result.map(fn(header) { header.1 })
-      |> result.unwrap("no-location-header")
-    }
-  }
+  let location_header = get_location_header(response)
   let assert True = string.contains(location_header, "/?error=")
 }
 

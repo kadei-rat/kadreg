@@ -48,6 +48,18 @@ body {
   text-align: center;
 }
 
+/* Success banner */
+.success-banner {
+  background: #4CAF50;
+  color: white;
+  padding: 16px;
+  border-radius: 12px;
+  margin-bottom: 24px;
+  font-size: 14px;
+  font-weight: 600;
+  text-align: center;
+}
+
 /* Form styles */
 .login-form {
   display: flex;

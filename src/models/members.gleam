@@ -286,36 +286,29 @@ fn decode_member_from_db() -> decode.Decoder(MemberRecord) {
   }
 }
 
-pub fn decode_create_member_request(
-  data: Dynamic,
+pub fn validate_member_request(
+  req: CreateMemberRequest,
 ) -> Result(CreateMemberRequest, AppError) {
-  let decoder = {
-    use email_address <- decode.field("email_address", decode.string)
-    use legal_name <- decode.field("legal_name", decode.string)
-    use date_of_birth <- decode.field("date_of_birth", decode.string)
-    use handle <- decode.field("handle", decode.string)
-    use postal_address <- decode.field("postal_address", decode.string)
-    use phone_number <- decode.field("phone_number", decode.string)
-    use password <- decode.field("password", decode.string)
-    use role_str <- decode.field("role", decode.string)
-    let role = case role.from_string(role_str) {
-      Ok(role) -> option.Some(role)
-      Error(_) -> option.None
-    }
+  let validations = [
+    validate(string.contains(req.email_address, "@"), "Invalid email address"),
+    validate(req.legal_name != "", "Must specify a legal name"),
+    validate(req.phone_number != "", "Must specify a phone number"),
+    validate(req.handle != "", "Must specify a handle"),
+    validate(req.postal_address != "", "Must specify a postal address"),
+    validate(req.date_of_birth != "", "Must specify a date of birth"),
+    validate(
+      string.length(req.password) >= 12,
+      "Password must be at least 12 characters",
+    ),
+  ]
 
-    decode.success(CreateMemberRequest(
-      email_address: email_address,
-      legal_name: legal_name,
-      date_of_birth: date_of_birth,
-      handle: handle,
-      postal_address: postal_address,
-      phone_number: phone_number,
-      password: password,
-      role: role,
-    ))
+  result.all(validations)
+  |> result.map(fn(_) { req })
+}
+
+fn validate(result: Bool, err_msg: String) -> Result(Nil, AppError) {
+  case result {
+    True -> Ok(Nil)
+    False -> Error(errors.validation_error(err_msg))
   }
-  decode.run(data, decoder)
-  |> result.map_error(fn(err) {
-    errors.validation_error(utils.decode_errors_to_string(err))
-  })
 }

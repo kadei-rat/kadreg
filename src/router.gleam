@@ -17,12 +17,13 @@ pub fn handle_request(
 
     // html
     [], Get -> handlers.login_page(req, db, conf)
+    ["signup"], Get -> handlers.signup_page(req, db, conf)
 
     // api
     ["auth", "login"], Post -> handlers.login(req, db)
     ["auth", "logout"], Post -> handlers.logout(req, db)
     ["auth", "me"], Get -> handlers.me(req, db)
-    ["members"], Post -> handlers.create_member(req, db)
+    ["members"], Post -> handlers.create_member(req, db, conf)
     ["members"], Get -> handlers.list_members(req, db)
     ["members"], Patch -> handlers.update_member(req, db)
     ["members", membership_id], Get ->

@@ -3,16 +3,17 @@ import lustre/attribute
 import lustre/element.{type Element}
 import lustre/element/html
 
-pub fn root() -> Element(t) {
-  root_with_error(None)
-}
-
-pub fn root_with_error(error: Option(String)) -> Element(t) {
+pub fn root(error: Option(String), success: Option(String)) -> Element(t) {
   html.div([attribute.class("login-container")], [
     html.h1([attribute.class("login-title")], [html.text("Login")]),
     case error {
       Some(err_msg) ->
         html.div([attribute.class("error-banner")], [html.text(err_msg)])
+      None -> html.div([], [])
+    },
+    case success {
+      Some(success_msg) ->
+        html.div([attribute.class("success-banner")], [html.text(success_msg)])
       None -> html.div([], [])
     },
     html.form(
