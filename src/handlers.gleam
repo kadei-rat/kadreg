@@ -1,9 +1,17 @@
 import authorization
 import config
 import errors
-import frontend/layout
+import frontend/admin_dashboard
+import frontend/admin_member_edit
+import frontend/admin_member_view
+import frontend/admin_members
+import frontend/admin_stats
+import frontend/dashboard
+import frontend/edit_membership
+import frontend/layout.{NoTables, Tables}
 import frontend/login_page
 import frontend/signup_page
+import frontend/view_membership
 import gleam/http
 import gleam/json
 import gleam/option.{type Option, None, Some}
@@ -27,19 +35,24 @@ pub fn static(req: Request) -> Response {
   wisp.not_found()
 }
 
-pub fn login_page(
+// If logged in the root is the view membership, else it's the login page
+pub fn root_page(
   req: Request,
-  _db: pog.Connection,
+  db: pog.Connection,
   conf: config.Config,
 ) -> Response {
   let query_params = wisp.get_query(req)
   let error_msg = val_from_querystring(query_params, "error")
   let success_msg = val_from_querystring(query_params, "success")
 
-  [login_page.root(error_msg, success_msg)]
-  |> layout.layout(conf.con_name)
-  |> element.to_document_string_tree
-  |> wisp.html_response(200)
+  case session.get_session(req) {
+    Ok(_) -> view_membership(req, db, conf)
+    Error(_) ->
+      [login_page.view(error_msg, success_msg)]
+      |> layout.view(conf.con_name, NoTables)
+      |> element.to_document_string_tree
+      |> wisp.html_response(200)
+  }
 }
 
 pub fn signup_page(
@@ -50,8 +63,8 @@ pub fn signup_page(
   let query_params = wisp.get_query(req)
   let error_msg = val_from_querystring(query_params, "error")
 
-  [signup_page.root(error_msg)]
-  |> layout.layout(conf.con_name)
+  [signup_page.view(error_msg)]
+  |> layout.view(conf.con_name, NoTables)
   |> element.to_document_string_tree
   |> wisp.html_response(200)
 }
@@ -84,49 +97,36 @@ pub fn create_member(
   |> result.unwrap_both
 }
 
-// GET /members/<membership_id> (Get a specific member)
-pub fn get_member(
+// Update a member - PATCH /members (self-edit)
+pub fn update_member(
   req: Request,
   db: pog.Connection,
   membership_id_str: String,
 ) -> Response {
   use session_data <- session.require_session(req)
+  use formdata <- wisp.require_form(req)
 
   membership_id.parse(membership_id_str)
   |> result.try(fn(target_id) {
-    authorization.can_manage_member_details(session_data, target_id)
+    authorization.check_manage_member_details(session_data, target_id)
     |> result.replace(target_id)
   })
-  |> result.try(members.get(db, _))
-  |> result.map(members.to_json)
-  |> result.map(json.to_string_tree)
-  |> utils.spy_on_result(log_request("get_member", req, _))
-  |> result.map(wisp.json_response(_, 200))
-  |> result.map_error(errors.error_to_response)
+  |> result.try(fn(target_id) {
+    decode_form_update_member_request(formdata.values)
+    |> result.map(fn(update_req) { #(target_id, update_req) })
+  })
+  |> result.try(fn(data) {
+    let #(target_id, update_req) = data
+    members.update_profile(db, target_id, update_req)
+  })
+  |> utils.spy_on_result(log_request("update_member", req, _))
+  |> result.map(fn(_member) { wisp.redirect("/") })
+  |> result.map_error(fn(err) {
+    wisp.redirect(
+      "/edit?error=" <> uri.percent_encode(errors.to_public_string(err)),
+    )
+  })
   |> result.unwrap_both
-}
-
-// GET /members (List all members)
-pub fn list_members(req: Request, db: pog.Connection) -> Response {
-  use session_data <- session.require_session(req)
-
-  authorization.can_list_members(session_data)
-  |> result.try(fn(_) { members.list(db) })
-  |> result.map(json.array(_, members.to_json))
-  |> result.map(json.to_string_tree)
-  |> result.map(wisp.json_response(_, 200))
-  |> utils.spy_on_result(log_request("list_members", req, _))
-  |> result.map_error(errors.error_to_response)
-  |> result.unwrap_both
-}
-
-// Update a member - PATCH /members
-pub fn update_member(req: Request, _db: pog.Connection) -> Response {
-  use _body <- wisp.require_json(req)
-
-  let error_json =
-    json.object([#("error", json.string("Update not yet implemented"))])
-  wisp.json_response(json.to_string_tree(error_json), 501)
 }
 
 // POST /members/<membership_id>/delete (Delete a member)
@@ -142,12 +142,12 @@ pub fn delete_member(
 
   membership_id.parse(membership_id_str)
   |> result.try(fn(target_id) {
-    authorization.can_manage_member_details(session_data, target_id)
+    authorization.check_manage_member_details(session_data, target_id)
     |> result.replace(target_id)
   })
   |> result.try(members.delete(db, _, purge_pii))
-  |> result.map(fn(_) { wisp.ok() })
   |> utils.spy_on_result(log_request("delete_member", req, _))
+  |> result.map(fn(_) { wisp.ok() })
   |> result.map_error(errors.error_to_response)
   |> result.unwrap_both
 }
@@ -160,11 +160,11 @@ pub fn login(req: Request, db: pog.Connection) -> Response {
   |> result.try(fn(data) {
     members.authenticate(db, data.email_address, data.password)
   })
+  |> utils.spy_on_result(log_request("login", req, _))
   |> result.map(fn(member) {
-    wisp.redirect("/auth/me")
+    wisp.redirect("/")
     |> session.create_session(req, member.membership_id, member.role)
   })
-  |> utils.spy_on_result(log_request("login", req, _))
   |> result.map_error(fn(err) {
     wisp.redirect(
       "/?error=" <> uri.percent_encode(errors.to_public_string(err)),
@@ -175,9 +175,7 @@ pub fn login(req: Request, db: pog.Connection) -> Response {
 
 // POST /auth/logout (Destroy session)
 pub fn logout(req: Request, _db: pog.Connection) -> Response {
-  let success_json =
-    json.object([#("message", json.string("Logout successful"))])
-  wisp.json_response(json.to_string_tree(success_json), 200)
+  wisp.redirect("/?success=" <> uri.percent_encode("Logged out successfully."))
   |> session.destroy_session(req)
 }
 
@@ -200,6 +198,186 @@ pub fn me(req: Request, _db: pog.Connection) -> Response {
     Error(err) -> errors.error_to_response(err)
   }
 }
+
+pub fn view_membership(
+  req: Request,
+  db: pog.Connection,
+  conf: config.Config,
+) -> Response {
+  use session_data <- session.require_session(req)
+
+  members.get(db, session_data.membership_id)
+  |> result.map(fn(member) {
+    [view_membership.view(member)]
+    |> dashboard.view(req.path, authorization.can_access_admin(session_data))
+    |> layout.view(conf.con_name, NoTables)
+    |> element.to_document_string_tree
+    |> wisp.html_response(200)
+  })
+  |> utils.spy_on_result(log_request("view_membership", req, _))
+  |> result.map_error(errors.error_to_response)
+  |> result.unwrap_both
+}
+
+pub fn edit_membership(
+  req: Request,
+  db: pog.Connection,
+  conf: config.Config,
+) -> Response {
+  use session_data <- session.require_session(req)
+  let query_params = wisp.get_query(req)
+  let error_msg = val_from_querystring(query_params, "error")
+
+  members.get(db, session_data.membership_id)
+  |> result.map(fn(member) {
+    [edit_membership.dashboard_edit_page(member, error_msg)]
+    |> dashboard.view(req.path, authorization.can_access_admin(session_data))
+    |> layout.view(conf.con_name, NoTables)
+    |> element.to_document_string_tree
+    |> wisp.html_response(200)
+  })
+  |> utils.spy_on_result(log_request("edit_membership", req, _))
+  |> result.map_error(errors.error_to_response)
+  |> result.unwrap_both
+}
+
+// Admin routes
+
+pub fn admin_stats(
+  req: Request,
+  db: pog.Connection,
+  conf: config.Config,
+) -> Response {
+  use session_data <- session.require_session(req)
+
+  authorization.check_access_admin(session_data)
+  |> result.try(fn(_) { members.get_stats(db) })
+  |> result.map(fn(stats) {
+    [admin_stats.view(stats)]
+    |> admin_dashboard.view(req.path)
+    |> layout.view(conf.con_name, NoTables)
+    |> element.to_document_string_tree
+    |> wisp.html_response(200)
+  })
+  |> utils.spy_on_result(log_request("admin_stats", req, _))
+  |> result.map_error(errors.error_to_response)
+  |> result.unwrap_both
+}
+
+pub fn admin_members_list(
+  req: Request,
+  db: pog.Connection,
+  conf: config.Config,
+) -> Response {
+  use session_data <- session.require_session(req)
+
+  authorization.check_manage_members(session_data)
+  |> result.try(fn(_) { members.list(db) })
+  |> result.map(fn(members_list) {
+    [admin_members.view(members_list)]
+    |> admin_dashboard.view(req.path)
+    |> layout.view(conf.con_name, Tables)
+    |> element.to_document_string_tree
+    |> wisp.html_response(200)
+  })
+  |> utils.spy_on_result(log_request("admin_members_list", req, _))
+  |> result.map_error(errors.error_to_response)
+  |> result.unwrap_both
+}
+
+pub fn admin_member_view(
+  req: Request,
+  db: pog.Connection,
+  conf: config.Config,
+  membership_id_str: String,
+) -> Response {
+  use session_data <- session.require_session(req)
+
+  membership_id.parse(membership_id_str)
+  |> result.try(fn(target_id) {
+    authorization.check_manage_member_details(session_data, target_id)
+    |> result.replace(target_id)
+  })
+  |> result.try(members.get(db, _))
+  |> result.map(fn(member) {
+    [admin_member_view.view(member)]
+    |> admin_dashboard.view(req.path)
+    |> layout.view(conf.con_name, NoTables)
+    |> element.to_document_string_tree
+    |> wisp.html_response(200)
+  })
+  |> utils.spy_on_result(log_request("admin_member_view", req, _))
+  |> result.map_error(errors.error_to_response)
+  |> result.unwrap_both
+}
+
+pub fn admin_member_edit_page(
+  req: Request,
+  db: pog.Connection,
+  conf: config.Config,
+  membership_id_str: String,
+) -> Response {
+  use session_data <- session.require_session(req)
+
+  let query_params = wisp.get_query(req)
+  let error_msg = val_from_querystring(query_params, "error")
+
+  membership_id.parse(membership_id_str)
+  |> result.try(fn(target_id) {
+    authorization.check_manage_member_details(session_data, target_id)
+    |> result.replace(target_id)
+  })
+  |> result.try(members.get(db, _))
+  |> result.map(fn(member) {
+    [admin_member_edit.member_edit_page(member, error_msg)]
+    |> admin_dashboard.view(req.path)
+    |> layout.view(conf.con_name, NoTables)
+    |> element.to_document_string_tree
+    |> wisp.html_response(200)
+  })
+  |> utils.spy_on_result(log_request("admin_member_edit", req, _))
+  |> result.map_error(errors.error_to_response)
+  |> result.unwrap_both
+}
+
+pub fn admin_update_member(
+  req: Request,
+  db: pog.Connection,
+  _conf: config.Config,
+  membership_id_str: String,
+) -> Response {
+  use session_data <- session.require_session(req)
+  use formdata <- wisp.require_form(req)
+
+  membership_id.parse(membership_id_str)
+  |> result.try(fn(target_id) {
+    authorization.check_manage_member_details(session_data, target_id)
+    |> result.replace(target_id)
+  })
+  |> result.try(fn(target_id) {
+    decode_form_admin_update_member_request(formdata.values)
+    |> result.map(fn(update_req) { #(target_id, update_req) })
+  })
+  |> result.try(fn(data) {
+    let #(target_id, update_req) = data
+    members.admin_update(db, target_id, update_req)
+  })
+  |> result.map(fn(_member) {
+    wisp.redirect("/admin/members/" <> membership_id_str)
+  })
+  |> utils.spy_on_result(log_request("admin_update_member", req, _))
+  |> result.map_error(fn(err) {
+    wisp.redirect(
+      "/admin/members/"
+      <> membership_id_str
+      <> "/edit?error="
+      <> uri.percent_encode(errors.to_public_string(err)),
+    )
+  })
+  |> result.unwrap_both
+}
+
+// Helpers
 
 fn log_request(
   handler_name: String,
@@ -270,6 +448,58 @@ fn decode_form_create_member_request(
     phone_number: phone_number,
     password: password,
     role: None,
+  ))
+}
+
+fn decode_form_update_member_request(
+  formdata: List(#(String, String)),
+) -> Result(members.UpdateMemberRequest, errors.AppError) {
+  use email_address <- result.try(get_field(formdata, "email_address"))
+  use legal_name <- result.try(get_field(formdata, "legal_name"))
+  use handle <- result.try(get_field(formdata, "handle"))
+  use postal_address <- result.try(get_field(formdata, "postal_address"))
+  use phone_number <- result.try(get_field(formdata, "phone_number"))
+  use current_password <- result.try(get_field(formdata, "current_password"))
+
+  // New password is optional
+  let new_password = case get_field(formdata, "new_password") {
+    Ok("") -> None
+    Ok(password) -> Some(password)
+    Error(_) -> None
+  }
+
+  Ok(members.UpdateMemberRequest(
+    email_address: email_address,
+    legal_name: legal_name,
+    handle: handle,
+    postal_address: postal_address,
+    phone_number: phone_number,
+    current_password: current_password,
+    new_password: new_password,
+  ))
+}
+
+fn decode_form_admin_update_member_request(
+  formdata: List(#(String, String)),
+) -> Result(members.AdminUpdateMemberRequest, errors.AppError) {
+  use email_address <- result.try(get_field(formdata, "email_address"))
+  use legal_name <- result.try(get_field(formdata, "legal_name"))
+  use date_of_birth <- result.try(get_field(formdata, "date_of_birth"))
+  use handle <- result.try(get_field(formdata, "handle"))
+  use postal_address <- result.try(get_field(formdata, "postal_address"))
+  use phone_number <- result.try(get_field(formdata, "phone_number"))
+  use role_str <- result.try(get_field(formdata, "role"))
+
+  use role <- result.try(role.from_string(role_str))
+
+  Ok(members.AdminUpdateMemberRequest(
+    email_address: email_address,
+    legal_name: legal_name,
+    date_of_birth: date_of_birth,
+    handle: handle,
+    postal_address: postal_address,
+    phone_number: phone_number,
+    role: role,
   ))
 }
 

@@ -25,9 +25,9 @@ pub fn member_cannot_list_all_members_test() {
       role.Member,
     )
 
-  // Test GET /members with member session
+  // Test GET /admin/members with member session
   let req =
-    testing.get("/members", [])
+    testing.get("/admin/members", [])
     |> test_helpers.set_session_cookie(member)
 
   let response = router.handle_request(req, conf, conn)
@@ -58,9 +58,9 @@ pub fn regstaff_can_list_all_members_test() {
       role.RegStaff,
     )
 
-  // Test GET /members with regstaff session
+  // Test GET /admin/members with regstaff session
   let req =
-    testing.get("/members", [])
+    testing.get("/admin/members", [])
     |> test_helpers.set_session_cookie(regstaff)
 
   let response = router.handle_request(req, conf, conn)
@@ -89,10 +89,10 @@ pub fn member_can_access_own_details_test() {
       role.Member,
     )
 
-  // Test GET /members/{own_id} with member session
+  // Test GET /admin/members/{own_id} with member session
   let member_id_str = membership_id.to_string(member.membership_id)
   let req =
-    testing.get("/members/" <> member_id_str, [])
+    testing.get("/admin/members/" <> member_id_str, [])
     |> test_helpers.set_session_cookie(member)
 
   let response = router.handle_request(req, conf, conn)
@@ -134,10 +134,10 @@ pub fn member_cannot_access_others_details_test() {
       role.Member,
     )
 
-  // Test GET /members/{other_id} with member session
+  // Test GET /admin/members/{other_id} with member session
   let other_id_str = membership_id.to_string(other.membership_id)
   let req =
-    testing.get("/members/" <> other_id_str, [])
+    testing.get("/admin/members/" <> other_id_str, [])
     |> test_helpers.set_session_cookie(member)
 
   let response = router.handle_request(req, conf, conn)
@@ -180,10 +180,10 @@ pub fn regstaff_can_access_others_details_test() {
       role.Member,
     )
 
-  // Test GET /members/{member_id} with regstaff session
+  // Test GET /admin/members/{member_id} with regstaff session
   let member_id_str = membership_id.to_string(member.membership_id)
   let req =
-    testing.get("/members/" <> member_id_str, [])
+    testing.get("/admin/members/" <> member_id_str, [])
     |> test_helpers.set_session_cookie(regstaff)
 
   let response = router.handle_request(req, conf, conn)

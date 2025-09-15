@@ -229,7 +229,8 @@ pub fn duplicate_constraints_test() {
       role: option.Some(role.Staff),
     )
 
-  let assert Error(_) = members.create(conn, request2)
+  let assert Error(errors.ValidationError(_, _)) =
+    members.create(conn, request2)
 
   // Try to create third member with same handle (should fail)
   let request3 =
@@ -246,7 +247,8 @@ pub fn duplicate_constraints_test() {
       role: option.Some(role.RegStaff),
     )
 
-  let assert Error(_) = members.create(conn, request3)
+  let assert Error(errors.ValidationError(_, _)) =
+    members.create(conn, request3)
 
   // Clean up
   let _ = cleanup_test_member(conn, test_email)

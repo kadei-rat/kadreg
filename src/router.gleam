@@ -16,20 +16,29 @@ pub fn handle_request(
     ["static", ..], Get -> handlers.static(req)
 
     // html
-    [], Get -> handlers.login_page(req, db, conf)
+    [], Get -> handlers.root_page(req, db, conf)
     ["signup"], Get -> handlers.signup_page(req, db, conf)
+    ["membership", "edit"], Get -> handlers.edit_membership(req, db, conf)
+
+    // admin
+    ["admin"], Get -> handlers.admin_stats(req, db, conf)
+    ["admin", "members"], Get -> handlers.admin_members_list(req, db, conf)
+    ["admin", "members", membership_id], Get ->
+      handlers.admin_member_view(req, db, conf, membership_id)
+    ["admin", "members", membership_id, "edit"], Get ->
+      handlers.admin_member_edit_page(req, db, conf, membership_id)
 
     // api
     ["auth", "login"], Post -> handlers.login(req, db)
     ["auth", "logout"], Post -> handlers.logout(req, db)
     ["auth", "me"], Get -> handlers.me(req, db)
     ["members"], Post -> handlers.create_member(req, db, conf)
-    ["members"], Get -> handlers.list_members(req, db)
-    ["members"], Patch -> handlers.update_member(req, db)
-    ["members", membership_id], Get ->
-      handlers.get_member(req, db, membership_id)
+    ["members", membership_id], Patch ->
+      handlers.update_member(req, db, membership_id)
     ["members", membership_id, "delete"], Post ->
       handlers.delete_member(req, db, membership_id)
+    ["admin", "members", membership_id], Patch ->
+      handlers.admin_update_member(req, db, conf, membership_id)
 
     ["health"], Get -> {
       wisp.response(200)

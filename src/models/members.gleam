@@ -3,7 +3,7 @@ import database
 import errors.{type AppError}
 import gleam/dynamic/decode
 import gleam/json
-import gleam/option.{type Option}
+import gleam/option.{type Option, None, Some}
 import gleam/result
 import gleam/string
 import models/membership_id.{type MembershipId}
@@ -51,6 +51,32 @@ pub type DeleteMemberRequest {
   )
 }
 
+pub type UpdateMemberRequest {
+  UpdateMemberRequest(
+    email_address: String,
+    legal_name: String,
+    handle: String,
+    postal_address: String,
+    phone_number: String,
+    current_password: String,
+    new_password: Option(String),
+  )
+}
+
+// Admin one differs from regular update by allowing role changes and DoB
+// changes, but not allowing password changes
+pub type AdminUpdateMemberRequest {
+  AdminUpdateMemberRequest(
+    email_address: String,
+    legal_name: String,
+    date_of_birth: String,
+    handle: String,
+    postal_address: String,
+    phone_number: String,
+    role: Role,
+  )
+}
+
 // Database interaction functions
 
 pub fn hash_password(password: String) -> Result(String, AppError) {
@@ -86,9 +112,9 @@ pub fn create(
   let sql =
     "
     INSERT INTO members (
-      email_address, legal_name, date_of_birth, handle, 
+      email_address, legal_name, date_of_birth, handle,
       postal_address, phone_number, password_hash, role
-    ) 
+    )
     VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
     RETURNING membership_num, email_address, legal_name, date_of_birth,
               handle, postal_address, phone_number, password_hash, role,
@@ -166,7 +192,7 @@ pub fn list(conn: pog.Connection) -> Result(List(MemberRecord), AppError) {
     SELECT membership_num, email_address, legal_name, date_of_birth,
            handle, postal_address, phone_number, password_hash, role,
            created_at::text, updated_at::text, deleted_at::text
-    FROM members 
+    FROM members
     WHERE deleted_at IS NULL
     ORDER BY membership_num ASC
   "
@@ -179,6 +205,86 @@ pub fn list(conn: pog.Connection) -> Result(List(MemberRecord), AppError) {
   )
 
   Ok(rows.rows)
+}
+
+pub type MemberStats {
+  MemberStats(
+    total_members: Int,
+    recent_signups: Int,
+    total_staff: Int,
+    total_deleted: Int,
+  )
+}
+
+pub fn get_stats(conn: pog.Connection) -> Result(MemberStats, AppError) {
+  let total_sql =
+    "SELECT COUNT(*) as count FROM members WHERE deleted_at IS NULL"
+  let recent_sql =
+    "SELECT COUNT(*) as count FROM members WHERE deleted_at IS NULL AND created_at > NOW() - INTERVAL '30 days'"
+  let staff_sql =
+    "SELECT COUNT(*) as count FROM members WHERE deleted_at IS NULL AND role IN ('Staff', 'RegStaff', 'Director', 'Sysadmin')"
+  let deleted_sql =
+    "SELECT COUNT(*) as count FROM members WHERE deleted_at IS NOT NULL"
+
+  let count_decoder = {
+    use count <- decode.field("count", decode.int)
+    decode.success(count)
+  }
+
+  use total_rows <- result.try(
+    pog.query(total_sql)
+    |> pog.returning(count_decoder)
+    |> pog.execute(conn)
+    |> result.map_error(database.to_app_error),
+  )
+
+  use recent_rows <- result.try(
+    pog.query(recent_sql)
+    |> pog.returning(count_decoder)
+    |> pog.execute(conn)
+    |> result.map_error(database.to_app_error),
+  )
+
+  use staff_rows <- result.try(
+    pog.query(staff_sql)
+    |> pog.returning(count_decoder)
+    |> pog.execute(conn)
+    |> result.map_error(database.to_app_error),
+  )
+
+  use deleted_rows <- result.try(
+    pog.query(deleted_sql)
+    |> pog.returning(count_decoder)
+    |> pog.execute(conn)
+    |> result.map_error(database.to_app_error),
+  )
+
+  let total_members = case total_rows.rows {
+    [count] -> count
+    _ -> 0
+  }
+
+  let recent_signups = case recent_rows.rows {
+    [count] -> count
+    _ -> 0
+  }
+
+  let total_staff = case staff_rows.rows {
+    [count] -> count
+    _ -> 0
+  }
+
+  let total_deleted = case deleted_rows.rows {
+    [count] -> count
+    _ -> 0
+  }
+
+  Ok(MemberStats(
+    total_members: total_members,
+    recent_signups: recent_signups,
+    total_staff: total_staff,
+    total_deleted: total_deleted,
+  ))
 }
 
 pub fn authenticate(
@@ -219,12 +325,154 @@ pub fn authenticate(
   }
 }
 
+pub fn update_profile(
+  conn: pog.Connection,
+  membership_id: MembershipId,
+  request: UpdateMemberRequest,
+) -> Result(MemberRecord, AppError) {
+  // Convert membership ID to number for database query
+  use membership_num <- result.try(membership_id.to_number(membership_id))
+
+  // First verify current password
+  use current_member <- result.try(get(conn, membership_id))
+  case verify_password(current_member.password_hash, request.current_password) {
+    False -> Error(errors.authentication_error("Current password is incorrect"))
+    True -> {
+      // Handle password update if provided
+      let password_hash = case request.new_password {
+        Some(new_pass) -> {
+          use new_hash <- result.try(hash_password(new_pass))
+          Ok(new_hash)
+        }
+        None -> Ok(current_member.password_hash)
+      }
+
+      use final_password_hash <- result.try(password_hash)
+
+      let sql =
+        "
+        UPDATE members
+        SET email_address = $1, legal_name = $2, handle = $3, postal_address = $4,
+        phone_number = $5, password_hash = $6, updated_at = NOW()
+        WHERE membership_num = $7 AND deleted_at IS NULL
+        RETURNING membership_num, email_address, legal_name,
+                  handle, postal_address, phone_number, password_hash, role,
+                  created_at::text, updated_at::text, deleted_at::text
+      "
+
+      use rows <- result.try(
+        pog.query(sql)
+        |> pog.parameter(pog.text(request.email_address))
+        |> pog.parameter(pog.text(request.legal_name))
+        |> pog.parameter(pog.text(request.handle))
+        |> pog.parameter(pog.text(request.postal_address))
+        |> pog.parameter(pog.text(request.phone_number))
+        |> pog.parameter(pog.text(final_password_hash))
+        |> pog.parameter(pog.int(membership_num))
+        |> pog.returning(decode_member_from_db())
+        |> pog.execute(conn)
+        |> result.map_error(database.to_app_error),
+      )
+
+      case rows.rows {
+        [member] -> Ok(member)
+        [] ->
+          Error(errors.not_found_error("Member not found or already deleted"))
+        _ ->
+          Error(errors.internal_error(
+            "Database operation failed",
+            "Update returned multiple rows (unexpected)",
+          ))
+      }
+    }
+  }
+}
+
+pub fn admin_update(
+  conn: pog.Connection,
+  membership_id: MembershipId,
+  request: AdminUpdateMemberRequest,
+) -> Result(MemberRecord, AppError) {
+  // Convert membership ID to number for database query
+  use membership_num <- result.try(membership_id.to_number(membership_id))
+
+  let sql =
+    "
+    UPDATE members
+    SET email_address = $1, legal_name = $2, date_of_birth = $3, handle = $4,
+        postal_address = $5, phone_number = $6, role = $7, updated_at = NOW()
+    WHERE membership_num = $8 AND deleted_at IS NULL
+    RETURNING membership_num, email_address, legal_name, date_of_birth,
+              handle, postal_address, phone_number, password_hash, role,
+              created_at::text, updated_at::text, deleted_at::text
+  "
+
+  use rows <- result.try(
+    pog.query(sql)
+    |> pog.parameter(pog.text(request.email_address))
+    |> pog.parameter(pog.text(request.legal_name))
+    |> pog.parameter(pog.text(request.date_of_birth))
+    |> pog.parameter(pog.text(request.handle))
+    |> pog.parameter(pog.text(request.postal_address))
+    |> pog.parameter(pog.text(request.phone_number))
+    |> pog.parameter(pog.text(role.to_string(request.role)))
+    |> pog.parameter(pog.int(membership_num))
+    |> pog.returning(decode_member_from_db())
+    |> pog.execute(conn)
+    |> result.map_error(database.to_app_error),
+  )
+
+  case rows.rows {
+    [member] -> Ok(member)
+    [] -> Error(errors.not_found_error("Member not found or already deleted"))
+    _ ->
+      Error(errors.internal_error(
+        "Database operation failed",
+        "Update returned multiple rows (unexpected)",
+      ))
+  }
+}
+
 pub fn delete(
-  _conn: pog.Connection,
-  _membership_id: MembershipId,
-  _purge_pii: Bool,
+  conn: pog.Connection,
+  membership_id: MembershipId,
+  purge_pii: Bool,
 ) -> Result(Nil, AppError) {
-  Error(errors.internal_error("Feature not available", "Not implemented yet"))
+  use membership_num <- result.try(membership_id.to_number(membership_id))
+
+  let sql = case purge_pii {
+    True ->
+      "
+      UPDATE members
+      SET legal_name = '(deleted)', handle = '(deleted)',
+          postal_address = '(deleted)', phone_number = '(deleted)',
+          deleted_at = NOW()
+      WHERE membership_num = $1 AND deleted_at IS NULL
+    "
+    False ->
+      "
+      UPDATE members
+      SET deleted_at = NOW()
+      WHERE membership_num = $1 AND deleted_at IS NULL
+    "
+  }
+
+  use rows <- result.try(
+    pog.query(sql)
+    |> pog.parameter(pog.int(membership_num))
+    |> pog.execute(conn)
+    |> result.map_error(database.to_app_error),
+  )
+
+  case rows.count {
+    1 -> Ok(Nil)
+    0 -> Error(errors.not_found_error("Member not found or already deleted"))
+    _ ->
+      Error(errors.internal_error(
+        "Database operation failed",
+        "Delete affected multiple rows (unexpected)",
+      ))
+  }
 }
 
 pub fn to_json(member: MemberRecord) -> json.Json {

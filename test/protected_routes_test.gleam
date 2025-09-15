@@ -10,8 +10,8 @@ pub fn protected_route_without_session_test() {
   let assert Ok(conn) = test_helpers.setup_test_db()
   let conf = config.load()
 
-  // Test GET /members without session
-  let req = testing.get("/members", [])
+  // Test GET /admin/members without session
+  let req = testing.get("/admin/members", [])
   let response = router.handle_request(req, conf, conn)
 
   // Should return 401 Unauthorized
@@ -24,9 +24,9 @@ pub fn protected_route_invalid_session_test() {
   let assert Ok(conn) = test_helpers.setup_test_db()
   let conf = config.load()
 
-  // Test GET /members with invalid session cookie
+  // Test GET /admin/members with invalid session cookie
   let req =
-    testing.get("/members", [])
+    testing.get("/admin/members", [])
     |> testing.set_cookie("kadreg_session", "INVALID_ID", wisp.Signed)
 
   let response = router.handle_request(req, conf, conn)
@@ -47,10 +47,10 @@ pub fn protected_get_member_route_test() {
   let assert Ok(member) =
     test_helpers.create_test_member(conn, test_email, "password123")
 
-  // Test GET /members/{id} with valid session
+  // Test GET /admin/members/{id} with valid session
   let member_id_str = membership_id.to_string(member.membership_id)
   let req =
-    testing.get("/members/" <> member_id_str, [])
+    testing.get("/admin/members/" <> member_id_str, [])
     |> test_helpers.set_session_cookie(member)
 
   let response = router.handle_request(req, conf, conn)

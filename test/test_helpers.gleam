@@ -96,3 +96,51 @@ pub fn get_location_header(response: wisp.Response) -> String {
     }
   }
 }
+
+pub fn member_form_data(
+  email: String,
+  name: String,
+  handle: String,
+) -> List(#(String, String)) {
+  [
+    #("email_address", email),
+    #("legal_name", name),
+    #("date_of_birth", "1990-01-01"),
+    #("handle", handle),
+    #("postal_address", "123 Test St"),
+    #("phone_number", "555-0123"),
+    #("password", "testpass123"),
+  ]
+}
+
+pub fn update_form_data(
+  email: String,
+  name: String,
+  handle: String,
+) -> List(#(String, String)) {
+  [
+    #("email_address", email),
+    #("legal_name", name),
+    #("date_of_birth", "1990-01-01"),
+    #("handle", handle),
+    #("postal_address", "456 Updated St"),
+    #("phone_number", "555-9999"),
+  ]
+}
+
+pub fn admin_update_form_data(
+  email: String,
+  name: String,
+  handle: String,
+  role: String,
+) -> List(#(String, String)) {
+  [
+    #("email_address", email),
+    #("legal_name", name),
+    #("date_of_birth", "1990-01-01"),
+    #("handle", handle),
+    #("postal_address", "789 Admin St"),
+    #("phone_number", "555-8888"),
+    #("role", role),
+  ]
+}

@@ -14,18 +14,13 @@ pub fn role_level(role: Role) -> Int {
   }
 }
 
-// Check if a role has admin-level permissions (RegStaff or higher)
-pub fn can_manage_members(role: Role) -> Bool {
-  role_level(role) >= role_level(role.RegStaff)
-}
-
 // Check if user can access member details
-pub fn can_manage_member_details(
+pub fn check_manage_member_details(
   session_data: SessionData,
   desired_membership_id: MembershipId,
 ) -> Result(Nil, AppError) {
   case
-    can_manage_members(session_data.role)
+    role_level(session_data.role) >= role_level(role.RegStaff)
     || session_data.membership_id == desired_membership_id
   {
     True -> Ok(Nil)
@@ -36,8 +31,8 @@ pub fn can_manage_member_details(
   }
 }
 
-pub fn can_list_members(session_data: SessionData) -> Result(Nil, AppError) {
-  case can_manage_members(session_data.role) {
+pub fn check_manage_members(session_data: SessionData) -> Result(Nil, AppError) {
+  case role_level(session_data.role) >= role_level(role.RegStaff) {
     True -> Ok(Nil)
     False ->
       Error(errors.authorization_error(
@@ -46,12 +41,14 @@ pub fn can_list_members(session_data: SessionData) -> Result(Nil, AppError) {
   }
 }
 
-pub fn can_create_members(session_data: SessionData) -> Result(Nil, AppError) {
-  case can_manage_members(session_data.role) {
+pub fn can_access_admin(session_data: SessionData) -> Bool {
+  role_level(session_data.role) >= role_level(role.Staff)
+}
+
+pub fn check_access_admin(session_data: SessionData) -> Result(Nil, AppError) {
+  case can_access_admin(session_data) {
     True -> Ok(Nil)
     False ->
-      Error(errors.authorization_error(
-        "User is not authorised to create new members",
-      ))
+      Error(errors.authorization_error("User is not authorised to access admin"))
   }
 }

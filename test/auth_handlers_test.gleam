@@ -30,7 +30,7 @@ pub fn login_success_and_me_test() {
   // Check login response - should be a redirect
   let assert 303 = login_response.status
   let location_header = get_location_header(login_response)
-  let assert True = string.contains(location_header, "/auth/me")
+  let assert True = string.contains(location_header, "/")
 
   // Extract session cookie from login response
   let session_cookie = case login_response.headers {
@@ -130,9 +130,7 @@ pub fn logout_success_test() {
   let response = handlers.logout(req, conn)
 
   // Check response
-  let assert 200 = response.status
-  let body = testing.string_body(response)
-  let assert True = string.contains(body, "Logout successful")
+  let assert 303 = response.status
 
   // Check that cookie clearing header was set
   let has_clear_cookie = case response.headers {
@@ -155,9 +153,7 @@ pub fn logout_no_session_test() {
   let req = testing.post("/auth/logout", [], "")
   let response = handlers.logout(req, conn)
 
-  let assert 200 = response.status
-  let body = testing.string_body(response)
-  let assert True = string.contains(body, "Logout successful")
+  let assert 303 = response.status
 }
 
 pub fn me_without_session_test() {

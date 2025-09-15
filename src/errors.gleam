@@ -1,6 +1,8 @@
 import gleam/json
 import wisp.{type Response}
 
+pub const public_5xx_msg = "Internal server error ;w;. Email support@kadreg.org.uk if this persists."
+
 pub type AppError {
   AuthorizationError(String)
   // 403 - User lacks permission

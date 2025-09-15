@@ -1,13 +1,11 @@
 import config
-import errors.{type AppError}
+import errors.{type AppError, public_5xx_msg}
 import gleam/erlang/process
 import gleam/int
 import gleam/string
 import global_value
 import pog
 import utils
-
-const internal_err = "Internal server error ;w;"
 
 pub fn connect(config: config.Config) -> Result(pog.Connection, String) {
   // global_value memoises the db connection. static key, assumes that a given
@@ -68,12 +66,12 @@ pub fn to_app_error(error: pog.QueryError) -> AppError {
       errors.validation_error(detail, string.inspect(error))
     pog.PostgresqlError(code, name, message) ->
       errors.internal_error(
-        internal_err,
+        public_5xx_msg,
         "PostgreSQL error: " <> code <> " (" <> name <> "): " <> message,
       )
     pog.UnexpectedArgumentCount(expected, got) ->
       errors.internal_error(
-        internal_err,
+        public_5xx_msg,
         "Unexpected argument count: expected "
           <> int.to_string(expected)
           <> ", got "
@@ -81,17 +79,17 @@ pub fn to_app_error(error: pog.QueryError) -> AppError {
       )
     pog.UnexpectedArgumentType(expected, got) ->
       errors.internal_error(
-        internal_err,
+        public_5xx_msg,
         "Unexpected argument type: expected " <> expected <> ", got " <> got,
       )
     pog.UnexpectedResultType(decode_errors) ->
       errors.internal_error(
-        internal_err,
+        public_5xx_msg,
         utils.decode_errors_to_string(decode_errors),
       )
     pog.QueryTimeout ->
-      errors.internal_error(internal_err, "Database query timed out")
+      errors.internal_error(public_5xx_msg, "Database query timed out")
     pog.ConnectionUnavailable ->
-      errors.internal_error(internal_err, "Database connection unavailable")
+      errors.internal_error(public_5xx_msg, "Database connection unavailable")
   }
 }

@@ -3,7 +3,7 @@ import lustre/attribute
 import lustre/element.{type Element}
 import lustre/element/html
 
-pub fn root(error: Option(String)) -> Element(t) {
+pub fn view(error: Option(String)) -> Element(t) {
   html.div([attribute.class("login-container")], [
     html.h1([attribute.class("login-title")], [html.text("Sign Up")]),
     case error {

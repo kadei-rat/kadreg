@@ -18,7 +18,8 @@ pub fn membership_id_parse_valid_test() {
 }
 
 pub fn membership_id_parse_invalid_test() {
-  let assert Error(_) = membership_id.parse("INVALID")
+  let assert Error(errors.ValidationError(_, _)) =
+    membership_id.parse("INVALID")
 }
 
 // Test to_number function with valid inputs
