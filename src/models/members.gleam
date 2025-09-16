@@ -140,12 +140,12 @@ pub fn create(
     [member] -> Ok(member)
     [] ->
       Error(errors.internal_error(
-        "Database operation failed",
+        errors.public_5xx_msg,
         "Insert failed - no rows returned",
       ))
     _ ->
       Error(errors.internal_error(
-        "Database operation failed",
+        errors.public_5xx_msg,
         "Insert returned multiple rows (unexpected)",
       ))
   }
@@ -180,7 +180,7 @@ pub fn get(
     [] -> Error(errors.not_found_error("Member not found"))
     _ ->
       Error(errors.internal_error(
-        "Database operation failed",
+        errors.public_5xx_msg,
         "Multiple members found (unexpected)",
       ))
   }
@@ -319,7 +319,7 @@ pub fn authenticate(
     [] -> Error(errors.authentication_error("Member not found"))
     _ ->
       Error(errors.internal_error(
-        "Database operation failed",
+        errors.public_5xx_msg,
         "Multiple members found (unexpected)",
       ))
   }
@@ -380,7 +380,7 @@ pub fn update_profile(
           Error(errors.not_found_error("Member not found or already deleted"))
         _ ->
           Error(errors.internal_error(
-            "Database operation failed",
+            errors.public_5xx_msg,
             "Update returned multiple rows (unexpected)",
           ))
       }
@@ -427,7 +427,7 @@ pub fn admin_update(
     [] -> Error(errors.not_found_error("Member not found or already deleted"))
     _ ->
       Error(errors.internal_error(
-        "Database operation failed",
+        errors.public_5xx_msg,
         "Update returned multiple rows (unexpected)",
       ))
   }
@@ -469,7 +469,7 @@ pub fn delete(
     0 -> Error(errors.not_found_error("Member not found or already deleted"))
     _ ->
       Error(errors.internal_error(
-        "Database operation failed",
+        errors.public_5xx_msg,
         "Delete affected multiple rows (unexpected)",
       ))
   }
