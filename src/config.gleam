@@ -1,6 +1,5 @@
 import envoy
 import gleam/int
-import gleam/option.{type Option}
 import gleam/result
 
 pub type Environment {
@@ -14,11 +13,8 @@ pub type Config {
     kadreg_env: Environment,
     con_name: String,
     // database configuration
-    db_host: String,
-    db_port: Int,
-    db_name: String,
-    db_user: String,
-    db_password: Option(String),
+    db_url: String,
+    db_name_suffix: String,
     db_pool_size: Int,
     // web server configuration
     server_port: Int,
@@ -44,27 +40,13 @@ pub fn load() -> Config {
     envoy.get("CON_NAME")
     |> result.unwrap("Pawsome")
 
-  let db_host =
-    envoy.get("DB_HOST")
-    |> result.unwrap("localhost")
+  let db_url =
+    envoy.get("DATABASE_URL")
+    |> result.unwrap("postgresql://localhost:5432/kadreg?sslmode=disable")
 
-  let db_port =
-    envoy.get("DB_PORT")
-    |> result.try(int.parse)
-    |> result.unwrap(5432)
-
-  let db_name =
-    envoy.get("DB_NAME")
-    |> result.unwrap("kadreg")
-
-  let db_user =
-    envoy.get("DB_USER")
+  let db_name_suffix =
+    envoy.get("DB_NAME_SUFFIX")
     |> result.unwrap("")
-
-  let db_password = case envoy.get("DB_PASSWORD") {
-    Ok(pwd) -> option.Some(pwd)
-    Error(_) -> option.None
-  }
 
   let db_pool_size =
     envoy.get("DB_POOL_SIZE")
@@ -90,11 +72,8 @@ pub fn load() -> Config {
   Config(
     kadreg_env: kadreg_env,
     con_name: con_name,
-    db_host: db_host,
-    db_port: db_port,
-    db_name: db_name,
-    db_user: db_user,
-    db_password: db_password,
+    db_url: db_url,
+    db_name_suffix: db_name_suffix,
     db_pool_size: db_pool_size,
     server_port: server_port,
     secret_key_base: secret_key_base,

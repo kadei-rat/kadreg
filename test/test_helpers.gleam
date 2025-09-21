@@ -13,7 +13,7 @@ import wisp/testing
 pub fn setup_test_db() -> Result(pog.Connection, String) {
   let config = config.load()
   // Use test database name if running in test mode
-  let test_config = config.Config(..config, db_name: config.db_name <> "_test")
+  let test_config = config.Config(..config, db_name_suffix: "_test")
   database.connect(test_config)
 }
 

@@ -2,6 +2,7 @@ import config
 import errors.{type AppError, public_5xx_msg}
 import gleam/erlang/process
 import gleam/int
+import gleam/result
 import gleam/string
 import global_value
 import pog
@@ -15,21 +16,15 @@ pub fn connect(config: config.Config) -> Result(pog.Connection, String) {
 
   let pool_name = process.new_name(prefix: "kadreg_db")
 
+  let url_conf =
+    pog.url_config(pool_name, config.db_url)
+    |> result.lazy_unwrap(fn() { panic as "Invalid DATABASE_URL" })
+
   let db_config =
     pog.Config(
-      host: config.db_host,
-      port: config.db_port,
-      database: config.db_name,
-      user: config.db_user,
-      password: config.db_password,
-      ssl: pog.SslDisabled,
-      connection_parameters: [],
+      ..url_conf,
+      database: url_conf.database <> config.db_name_suffix,
       pool_size: config.db_pool_size,
-      queue_target: 50,
-      queue_interval: 1000,
-      idle_interval: 1000,
-      trace: False,
-      ip_version: pog.Ipv4,
       pool_name: pool_name,
       rows_as_map: True,
     )

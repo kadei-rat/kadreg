@@ -1,6 +1,7 @@
 import config
 import database
 import gleam/erlang/process
+import logging
 import mist
 import router
 import wisp
