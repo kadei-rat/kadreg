@@ -93,7 +93,6 @@ fn call_db_coordinator(
 }
 
 fn handle_message(state: State, message: Message) -> actor.Next(State, Message) {
-  // unfortunately seems like we need an explicit case for each concrete type
   case message {
     MemberQuery(query, reply_to) -> run_query(state, query, reply_to)
     CountQuery(query, reply_to) -> run_query(state, query, reply_to)
@@ -106,46 +105,57 @@ fn run_query(
   query: pog.Query(t),
   reply_to: Subject(Result(pog.Returned(t), AppError)),
 ) -> actor.Next(State, Message) {
-  let now = timestamp.system_time()
-
   case state {
-    State(Some(DbPool(conn, pid, created_at)), conf, last_query_time, _) -> {
-      let should_restart = case last_query_time {
-        Some(last_time) -> {
-          let time_elapsed = timestamp.difference(now, last_time)
-          duration.compare(
-            time_elapsed,
-            duration.seconds(conf.max_db_pool_lifetime),
-          )
-          == order.Gt
-        }
-        None -> False
-      }
-
-      case should_restart {
+    State(Some(DbPool(_, pid, _)), conf, last_query_time, _) -> {
+      case should_restart_conn(last_query_time, conf) {
         True -> {
           logging.log(logging.Info, "Restarting stale DB connection")
           process.send_exit(pid)
-          create_conn_and_execute_query(state, query, reply_to, now)
+          create_conn_and_execute_query(state, query, reply_to)
         }
         False -> {
-          case pog.execute(query, conn) {
-            Error(pog.QueryTimeout) ->
-              handle_query_timeout(state, pid, created_at, now, reply_to, query)
-            Error(other_error) -> {
-              process.send(reply_to, Error(database.to_app_error(other_error)))
-              actor.continue(state)
-            }
-            Ok(result) -> {
-              process.send(reply_to, Ok(result))
-              actor.continue(State(..state, last_query_time: Some(now)))
-            }
-          }
+          execute_query_on_conn(state, query, reply_to)
         }
       }
     }
     State(None, _, _, _) -> {
-      create_conn_and_execute_query(state, query, reply_to, now)
+      create_conn_and_execute_query(state, query, reply_to)
+    }
+  }
+}
+
+fn should_restart_conn(last_query_time: Option(Timestamp), conf: Config) -> Bool {
+  let now = timestamp.system_time()
+  case last_query_time {
+    Some(last_time) -> {
+      let time_elapsed = timestamp.difference(now, last_time)
+      duration.compare(
+        time_elapsed,
+        duration.seconds(conf.max_db_pool_lifetime),
+      )
+      == order.Gt
+    }
+    None -> False
+  }
+}
+
+fn execute_query_on_conn(
+  state: State,
+  query: pog.Query(t),
+  reply_to: Subject(Result(pog.Returned(t), AppError)),
+) -> actor.Next(State, Message) {
+  let assert State(Some(DbPool(conn, pid, created_at)), _, _, _) = state
+  let now = timestamp.system_time()
+  case pog.execute(query, conn) {
+    Error(pog.QueryTimeout) ->
+      handle_query_timeout(state, pid, created_at, now, reply_to, query)
+    Error(other_error) -> {
+      process.send(reply_to, Error(database.to_app_error(other_error)))
+      actor.continue(state)
+    }
+    Ok(result) -> {
+      process.send(reply_to, Ok(result))
+      actor.continue(State(..state, last_query_time: Some(now)))
     }
   }
 }
@@ -154,26 +164,28 @@ fn create_conn_and_execute_query(
   state: State,
   query: pog.Query(t),
   reply_to: Subject(Result(pog.Returned(t), AppError)),
-  now: Timestamp,
 ) -> actor.Next(State, Message) {
+  let now = timestamp.system_time()
   logging.log(logging.Info, "Initialising DB connection")
   case database.connect(state.conf, state.pool_name) {
     Ok(actor.Started(pid, data)) -> {
       logging.log(logging.Info, "DB connection successful")
+      let new_state =
+        State(
+          ..state,
+          conn: Some(DbPool(conn: data, pid: pid, created_at: now)),
+          last_query_time: Some(now),
+        )
       case pog.execute(query, data) {
+        // For the initial query after a connection, don't handle QueryTimeout
+        // separately; we never recycle a young pool
         Ok(result) -> {
           process.send(reply_to, Ok(result))
-          actor.continue(
-            State(
-              ..state,
-              conn: Some(DbPool(conn: data, pid: pid, created_at: now)),
-              last_query_time: Some(now),
-            ),
-          )
+          actor.continue(new_state)
         }
         Error(err) -> {
           process.send(reply_to, Error(database.to_app_error(err)))
-          actor.continue(state)
+          actor.continue(new_state)
         }
       }
     }
@@ -213,7 +225,7 @@ fn handle_query_timeout(
         "Query timeout on connection older than 1 minute - restarting connection",
       )
       process.send_exit(pid)
-      create_conn_and_execute_query(state, query, reply_to, now)
+      create_conn_and_execute_query(state, query, reply_to)
     }
     _ -> {
       process.send(reply_to, Error(database.to_app_error(pog.QueryTimeout)))
