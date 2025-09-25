@@ -1,5 +1,6 @@
 import authorization
 import config
+import db_coordinator.{type DbCoordName}
 import errors
 import frontend/admin_dashboard
 import frontend/admin_member_edit
@@ -20,9 +21,9 @@ import gleam/uri
 import logging
 import lustre/element
 import models/members
+import models/members_db
 import models/membership_id
 import models/role
-import pog
 import session
 import utils
 import wisp.{type Request, type Response}
@@ -36,11 +37,7 @@ pub fn static(req: Request) -> Response {
 }
 
 // If logged in the root is the view membership, else it's the login page
-pub fn root_page(
-  req: Request,
-  db: pog.Connection,
-  conf: config.Config,
-) -> Response {
+pub fn root_page(req: Request, db: DbCoordName, conf: config.Config) -> Response {
   let query_params = wisp.get_query(req)
   let error_msg = val_from_querystring(query_params, "error")
   let success_msg = val_from_querystring(query_params, "success")
@@ -57,7 +54,7 @@ pub fn root_page(
 
 pub fn signup_page(
   req: Request,
-  _db: pog.Connection,
+  _db: DbCoordName,
   conf: config.Config,
 ) -> Response {
   let query_params = wisp.get_query(req)
@@ -74,14 +71,14 @@ pub fn signup_page(
 // POST /members (Create a new member)
 pub fn create_member(
   req: Request,
-  db: pog.Connection,
+  db: DbCoordName,
   _conf: config.Config,
 ) -> Response {
   use formdata <- wisp.require_form(req)
 
   decode_form_create_member_request(formdata.values)
   |> result.try(members.validate_member_request)
-  |> result.try(members.create(db, _))
+  |> result.try(members_db.create(db, _))
   |> result.map(fn(_member) {
     wisp.redirect(
       "/?success="
@@ -100,7 +97,7 @@ pub fn create_member(
 // Update a member - PATCH /members (self-edit)
 pub fn update_member(
   req: Request,
-  db: pog.Connection,
+  db: DbCoordName,
   membership_id_str: String,
 ) -> Response {
   use session_data <- session.require_session(req)
@@ -117,7 +114,7 @@ pub fn update_member(
   })
   |> result.try(fn(data) {
     let #(target_id, update_req) = data
-    members.update_profile(db, target_id, update_req)
+    members_db.update_profile(db, target_id, update_req)
   })
   |> utils.spy_on_result(log_request("update_member", req, _))
   |> result.map(fn(_member) { wisp.redirect("/") })
@@ -132,7 +129,7 @@ pub fn update_member(
 // POST /members/<membership_id>/delete (Delete a member)
 pub fn delete_member(
   req: Request,
-  db: pog.Connection,
+  db: DbCoordName,
   membership_id_str: String,
 ) -> Response {
   use session_data <- session.require_session(req)
@@ -145,7 +142,7 @@ pub fn delete_member(
     authorization.check_manage_member_details(session_data, target_id)
     |> result.replace(target_id)
   })
-  |> result.try(members.delete(db, _, purge_pii))
+  |> result.try(members_db.delete(db, _, purge_pii))
   |> utils.spy_on_result(log_request("delete_member", req, _))
   |> result.map(fn(_) { wisp.ok() })
   |> result.map_error(errors.error_to_response)
@@ -153,12 +150,12 @@ pub fn delete_member(
 }
 
 // POST /auth/login (Create a session)
-pub fn login(req: Request, db: pog.Connection) -> Response {
+pub fn login(req: Request, db: DbCoordName) -> Response {
   use formdata <- wisp.require_form(req)
 
   decode_form_login_request(formdata.values)
   |> result.try(fn(data) {
-    members.authenticate(db, data.email_address, data.password)
+    members_db.authenticate(db, data.email_address, data.password)
   })
   |> utils.spy_on_result(log_request("login", req, _))
   |> result.map(fn(member) {
@@ -174,13 +171,13 @@ pub fn login(req: Request, db: pog.Connection) -> Response {
 }
 
 // POST /auth/logout (Destroy session)
-pub fn logout(req: Request, _db: pog.Connection) -> Response {
+pub fn logout(req: Request, _db: DbCoordName) -> Response {
   wisp.redirect("/?success=" <> uri.percent_encode("Logged out successfully."))
   |> session.destroy_session(req)
 }
 
 // GET /auth/me (Get current session info)
-pub fn me(req: Request, _db: pog.Connection) -> Response {
+pub fn me(req: Request, _db: DbCoordName) -> Response {
   let result = session.get_session(req)
   log_request("me", req, result)
   case result {
@@ -201,12 +198,12 @@ pub fn me(req: Request, _db: pog.Connection) -> Response {
 
 pub fn view_membership(
   req: Request,
-  db: pog.Connection,
+  db: DbCoordName,
   conf: config.Config,
 ) -> Response {
   use session_data <- session.require_session(req)
 
-  members.get(db, session_data.membership_id)
+  members_db.get(db, session_data.membership_id)
   |> result.map(fn(member) {
     [view_membership.view(member)]
     |> dashboard.view(req.path, authorization.can_access_admin(session_data))
@@ -221,14 +218,14 @@ pub fn view_membership(
 
 pub fn edit_membership(
   req: Request,
-  db: pog.Connection,
+  db: DbCoordName,
   conf: config.Config,
 ) -> Response {
   use session_data <- session.require_session(req)
   let query_params = wisp.get_query(req)
   let error_msg = val_from_querystring(query_params, "error")
 
-  members.get(db, session_data.membership_id)
+  members_db.get(db, session_data.membership_id)
   |> result.map(fn(member) {
     [edit_membership.dashboard_edit_page(member, error_msg)]
     |> dashboard.view(req.path, authorization.can_access_admin(session_data))
@@ -245,13 +242,13 @@ pub fn edit_membership(
 
 pub fn admin_stats(
   req: Request,
-  db: pog.Connection,
+  db: DbCoordName,
   conf: config.Config,
 ) -> Response {
   use session_data <- session.require_session(req)
 
   authorization.check_access_admin(session_data)
-  |> result.try(fn(_) { members.get_stats(db) })
+  |> result.try(fn(_) { members_db.get_stats(db) })
   |> result.map(fn(stats) {
     [admin_stats.view(stats)]
     |> admin_dashboard.view(req.path)
@@ -266,13 +263,13 @@ pub fn admin_stats(
 
 pub fn admin_members_list(
   req: Request,
-  db: pog.Connection,
+  db: DbCoordName,
   conf: config.Config,
 ) -> Response {
   use session_data <- session.require_session(req)
 
   authorization.check_manage_members(session_data)
-  |> result.try(fn(_) { members.list(db) })
+  |> result.try(fn(_) { members_db.list(db) })
   |> result.map(fn(members_list) {
     [admin_members.view(members_list)]
     |> admin_dashboard.view(req.path)
@@ -287,7 +284,7 @@ pub fn admin_members_list(
 
 pub fn admin_member_view(
   req: Request,
-  db: pog.Connection,
+  db: DbCoordName,
   conf: config.Config,
   membership_id_str: String,
 ) -> Response {
@@ -298,7 +295,7 @@ pub fn admin_member_view(
     authorization.check_manage_member_details(session_data, target_id)
     |> result.replace(target_id)
   })
-  |> result.try(members.get(db, _))
+  |> result.try(members_db.get(db, _))
   |> result.map(fn(member) {
     [admin_member_view.view(member)]
     |> admin_dashboard.view(req.path)
@@ -313,7 +310,7 @@ pub fn admin_member_view(
 
 pub fn admin_member_edit_page(
   req: Request,
-  db: pog.Connection,
+  db: DbCoordName,
   conf: config.Config,
   membership_id_str: String,
 ) -> Response {
@@ -327,7 +324,7 @@ pub fn admin_member_edit_page(
     authorization.check_manage_member_details(session_data, target_id)
     |> result.replace(target_id)
   })
-  |> result.try(members.get(db, _))
+  |> result.try(members_db.get(db, _))
   |> result.map(fn(member) {
     [admin_member_edit.member_edit_page(member, error_msg)]
     |> admin_dashboard.view(req.path)
@@ -342,7 +339,7 @@ pub fn admin_member_edit_page(
 
 pub fn admin_update_member(
   req: Request,
-  db: pog.Connection,
+  db: DbCoordName,
   _conf: config.Config,
   membership_id_str: String,
 ) -> Response {
@@ -360,7 +357,7 @@ pub fn admin_update_member(
   })
   |> result.try(fn(data) {
     let #(target_id, update_req) = data
-    members.admin_update(db, target_id, update_req)
+    members_db.admin_update(db, target_id, update_req)
   })
   |> result.map(fn(_member) {
     wisp.redirect("/admin/members/" <> membership_id_str)

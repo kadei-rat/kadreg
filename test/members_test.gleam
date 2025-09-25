@@ -3,6 +3,7 @@ import gleam/json
 import gleam/option
 import gleam/string
 import models/members
+import models/members_db
 import models/membership_id
 import models/role
 
@@ -24,7 +25,7 @@ pub fn encode_member_test() {
       deleted_at: option.None,
     )
 
-  let encoded = members.to_json(member)
+  let encoded = members_db.to_json(member)
   let encoded_str = json.to_string(encoded)
 
   let assert True = string.contains(encoded_str, "\"membership_num\":42")

@@ -16,6 +16,8 @@ pub type Config {
     db_url: String,
     db_name_suffix: String,
     db_pool_size: Int,
+    // in seconds
+    max_db_pool_lifetime: Int,
     // web server configuration
     server_port: Int,
     secret_key_base: String,
@@ -51,7 +53,7 @@ pub fn load() -> Config {
   let db_pool_size =
     envoy.get("DB_POOL_SIZE")
     |> result.try(int.parse)
-    |> result.unwrap(10)
+    |> result.unwrap(5)
 
   let server_port =
     envoy.get("PORT")
@@ -69,12 +71,19 @@ pub fn load() -> Config {
     _, _ -> Nil
   }
 
+  // in integer seconds
+  let max_db_pool_lifetime =
+    envoy.get("MAX_DB_POOL_LIFETIME")
+    |> result.try(int.parse)
+    |> result.unwrap(4 * 60)
+
   Config(
     kadreg_env: kadreg_env,
     con_name: con_name,
     db_url: db_url,
     db_name_suffix: db_name_suffix,
     db_pool_size: db_pool_size,
+    max_db_pool_lifetime: max_db_pool_lifetime,
     server_port: server_port,
     secret_key_base: secret_key_base,
   )

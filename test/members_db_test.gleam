@@ -5,16 +5,17 @@ import gleam/int
 import gleam/list
 import gleam/option
 import models/members
+import models/members_db
 import models/membership_id
 import models/role
 import test_helpers.{cleanup_test_member, setup_test_db}
 
 pub fn create_member_test() {
-  let assert Ok(conn) = setup_test_db()
+  let assert Ok(db_coord) = setup_test_db()
   let test_email = "test_create@example.com"
 
   // Clean up any existing test data
-  let _ = cleanup_test_member(conn, test_email)
+  let _ = cleanup_test_member(db_coord, test_email)
 
   let request =
     members.CreateMemberRequest(
@@ -29,7 +30,7 @@ pub fn create_member_test() {
     )
 
   // Test creation
-  let assert Ok(created_member) = members.create(conn, request)
+  let assert Ok(created_member) = members_db.create(db_coord, request)
 
   // Verify the created member
   let assert True = created_member.membership_num > 0
@@ -47,7 +48,7 @@ pub fn create_member_test() {
 
   // Test authentication with correct password
   let assert Ok(authenticated_member) =
-    members.authenticate(conn, test_email, "testpassword123")
+    members_db.authenticate(db_coord, test_email, "testpassword123")
   let assert True =
     authenticated_member.membership_num == created_member.membership_num
   let assert True =
@@ -55,19 +56,19 @@ pub fn create_member_test() {
 
   // Test authentication with wrong password
   let assert Error(errors.AuthenticationError(msg)) =
-    members.authenticate(conn, test_email, "wrongpassword")
+    members_db.authenticate(db_coord, test_email, "wrongpassword")
   let assert True = msg == "Invalid password"
 
   // Clean up
-  let _ = cleanup_test_member(conn, test_email)
+  let _ = cleanup_test_member(db_coord, test_email)
 }
 
 pub fn get_member_test() {
-  let assert Ok(conn) = setup_test_db()
+  let assert Ok(db_coord) = setup_test_db()
   let test_email = "test_get@example.com"
 
   // Clean up any existing test data
-  let _ = cleanup_test_member(conn, test_email)
+  let _ = cleanup_test_member(db_coord, test_email)
 
   let request =
     members.CreateMemberRequest(
@@ -82,11 +83,11 @@ pub fn get_member_test() {
     )
 
   // Create a member first
-  let assert Ok(created_member) = members.create(conn, request)
+  let assert Ok(created_member) = members_db.create(db_coord, request)
 
   // Test get by membership ID
   let assert Ok(retrieved_member) =
-    members.get(conn, created_member.membership_id)
+    members_db.get(db_coord, created_member.membership_id)
 
   // Verify retrieved member matches created member
   let assert True =
@@ -99,15 +100,15 @@ pub fn get_member_test() {
 
   // Test get with invalid membership ID
   let invalid_id = membership_id.from_number(999)
-  let assert Error(errors.NotFoundError(msg)) = members.get(conn, invalid_id)
+  let assert Error(errors.NotFoundError(msg)) = members_db.get(db_coord, invalid_id)
   let assert True = msg == "Member not found"
 
   // Clean up
-  let _ = cleanup_test_member(conn, test_email)
+  let _ = cleanup_test_member(db_coord, test_email)
 }
 
 pub fn list_members_test() {
-  let assert Ok(conn) = setup_test_db()
+  let assert Ok(db_coord) = setup_test_db()
   let test_emails = [
     "list1@example.com",
     "list2@example.com",
@@ -117,7 +118,7 @@ pub fn list_members_test() {
   // Clean up any existing test data
   test_emails
   |> list.each(fn(email) {
-    let _ = cleanup_test_member(conn, email)
+    let _ = cleanup_test_member(db_coord, email)
   })
 
   // Create multiple test members
@@ -157,12 +158,12 @@ pub fn list_members_test() {
   let created_members =
     requests
     |> list.map(fn(req) {
-      let assert Ok(member) = members.create(conn, req)
+      let assert Ok(member) = members_db.create(db_coord, req)
       member
     })
 
   // Test list function
-  let assert Ok(all_members) = members.list(conn)
+  let assert Ok(all_members) = members_db.list(db_coord)
 
   // Verify our test members are in the list
   created_members
@@ -187,17 +188,17 @@ pub fn list_members_test() {
   // Clean up
   test_emails
   |> list.each(fn(email) {
-    let _ = cleanup_test_member(conn, email)
+    let _ = cleanup_test_member(db_coord, email)
   })
 }
 
 pub fn duplicate_constraints_test() {
-  let assert Ok(conn) = setup_test_db()
+  let assert Ok(db_coord) = setup_test_db()
   let test_email = "duplicate@example.com"
   let test_handle = "duplicatehandle"
 
   // Clean up any existing test data
-  let _ = cleanup_test_member(conn, test_email)
+  let _ = cleanup_test_member(db_coord, test_email)
 
   let request1 =
     members.CreateMemberRequest(
@@ -212,7 +213,7 @@ pub fn duplicate_constraints_test() {
     )
 
   // Create first member
-  let assert Ok(_) = members.create(conn, request1)
+  let assert Ok(_) = members_db.create(db_coord, request1)
 
   // Try to create second member with same email (should fail)
   let request2 =
@@ -230,7 +231,7 @@ pub fn duplicate_constraints_test() {
     )
 
   let assert Error(errors.ValidationError(_, _)) =
-    members.create(conn, request2)
+    members_db.create(db_coord, request2)
 
   // Try to create third member with same handle (should fail)
   let request3 =
@@ -248,8 +249,8 @@ pub fn duplicate_constraints_test() {
     )
 
   let assert Error(errors.ValidationError(_, _)) =
-    members.create(conn, request3)
+    members_db.create(db_coord, request3)
 
   // Clean up
-  let _ = cleanup_test_member(conn, test_email)
+  let _ = cleanup_test_member(db_coord, test_email)
 }

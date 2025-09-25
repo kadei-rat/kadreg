@@ -1,45 +1,61 @@
 import config
-import database
+import db_coordinator
+import errors.{type AppError}
+import gleam/erlang/process
 import gleam/list
 import gleam/option
 import gleam/result
+import gleam/string
+import global_value
 import models/members
+import models/members_db
 import models/membership_id
 import models/role
 import pog
 import wisp
 import wisp/testing
 
-pub fn setup_test_db() -> Result(pog.Connection, String) {
+pub fn setup_test_db() -> Result(db_coordinator.DbCoordName, AppError) {
+  // global_value memoises the db connection. static key, assumes that a given
+  // process will only ever use a single db config.
+  use <- global_value.create_with_unique_name("test_db")
+
   let config = config.load()
   // Use test database name if running in test mode
   let test_config = config.Config(..config, db_name_suffix: "_test")
-  database.connect(test_config)
+
+  let db_coord_name = process.new_name(prefix: "test_db_coord")
+  case db_coordinator.start(test_config, db_coord_name) {
+    Ok(_) -> Ok(db_coord_name)
+    Error(err) ->
+      Error(errors.internal_error(
+        errors.public_5xx_msg,
+        "Test database coordinator failed to start: " <> string.inspect(err),
+      ))
+  }
 }
 
 pub fn cleanup_test_member(
-  conn: pog.Connection,
+  db_coord_name: db_coordinator.DbCoordName,
   email: String,
 ) -> Result(Nil, String) {
-  let sql = "DELETE FROM members WHERE email_address = $1"
-
-  use _ <- result.try(
-    pog.query(sql)
+  let query =
+    pog.query("DELETE FROM members WHERE email_address = $1")
     |> pog.parameter(pog.text(email))
-    |> pog.execute(conn)
-    |> result.map_error(fn(_) { "Cleanup failed" }),
-  )
 
-  Ok(Nil)
+  case db_coordinator.noresult_query(query, db_coord_name) {
+    Ok(_) -> Ok(Nil)
+    Error(_) -> Error("Cleanup failed")
+  }
 }
 
 pub fn create_test_member(
-  conn: pog.Connection,
+  db_coord_name: db_coordinator.DbCoordName,
   email: String,
   password: String,
 ) -> Result(members.MemberRecord, String) {
   create_test_member_with_details(
-    conn,
+    db_coord_name,
     email,
     password,
     "Test User",
@@ -49,7 +65,7 @@ pub fn create_test_member(
 }
 
 pub fn create_test_member_with_details(
-  conn: pog.Connection,
+  db_coord_name: db_coordinator.DbCoordName,
   email: String,
   password: String,
   legal_name: String,
@@ -67,7 +83,7 @@ pub fn create_test_member_with_details(
       password: password,
       role: option.Some(member_role),
     )
-  members.create(conn, request)
+  members_db.create(db_coord_name, request)
   |> result.map_error(fn(_) { "Test member creation failed" })
 }
 

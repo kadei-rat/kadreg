@@ -1,21 +1,12 @@
 import config
 import errors.{type AppError, public_5xx_msg}
-import gleam/erlang/process
 import gleam/int
 import gleam/result
 import gleam/string
-import global_value
 import pog
 import utils
 
-pub fn connect(config: config.Config) -> Result(pog.Connection, String) {
-  // global_value memoises the db connection. static key, assumes that a given
-  // process will only ever use a single db config. (static key is generally
-  // good practice with global_value which uses persistent_term)
-  use <- global_value.create_with_unique_name("pog_conn")
-
-  let pool_name = process.new_name(prefix: "kadreg_db")
-
+pub fn connect(config: config.Config, pool_name) {
   let url_conf =
     pog.url_config(pool_name, config.db_url)
     |> result.lazy_unwrap(fn() { panic as "Invalid DATABASE_URL" })
@@ -25,15 +16,12 @@ pub fn connect(config: config.Config) -> Result(pog.Connection, String) {
       ..url_conf,
       database: url_conf.database <> config.db_name_suffix,
       pool_size: config.db_pool_size,
-      pool_name: pool_name,
       rows_as_map: True,
+      // 10 days. no heartbeats -- prevents neon from closing idle conns.
+      idle_interval: 864_000_000,
     )
 
-  case pog.start(db_config) {
-    Ok(started) -> Ok(started.data)
-    Error(error) ->
-      Error("Database connection failed: " <> string.inspect(error))
-  }
+  pog.start(db_config)
 }
 
 pub fn inspect_query_error(error: pog.QueryError) -> String {

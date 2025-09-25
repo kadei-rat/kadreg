@@ -9,15 +9,15 @@ import test_helpers.{
 import wisp/testing
 
 pub fn member_cannot_list_all_members_test() {
-  let assert Ok(conn) = setup_test_db()
+  let assert Ok(db_coord) = setup_test_db()
   let test_email = "member@example.com"
   let conf = config.load()
 
   // Clean up and create member user
-  let _ = cleanup_test_member(conn, test_email)
+  let _ = cleanup_test_member(db_coord, test_email)
   let assert Ok(member) =
     create_test_member_with_details(
-      conn,
+      db_coord,
       test_email,
       "password",
       "Member User",
@@ -30,7 +30,7 @@ pub fn member_cannot_list_all_members_test() {
     testing.get("/admin/members", [])
     |> test_helpers.set_session_cookie(member)
 
-  let response = router.handle_request(req, conf, conn)
+  let response = router.handle_request(req, conf, db_coord)
 
   // Should return 403 Forbidden
   let assert 403 = response.status
@@ -38,19 +38,19 @@ pub fn member_cannot_list_all_members_test() {
   let assert True = string.contains(body, "not authorised")
 
   // Cleanup
-  let _ = cleanup_test_member(conn, test_email)
+  let _ = cleanup_test_member(db_coord, test_email)
 }
 
 pub fn regstaff_can_list_all_members_test() {
-  let assert Ok(conn) = setup_test_db()
+  let assert Ok(db_coord) = setup_test_db()
   let test_email = "regstaff@example.com"
   let conf = config.load()
 
   // Clean up and create regstaff user
-  let _ = cleanup_test_member(conn, test_email)
+  let _ = cleanup_test_member(db_coord, test_email)
   let assert Ok(regstaff) =
     create_test_member_with_details(
-      conn,
+      db_coord,
       test_email,
       "password",
       "RegStaff User",
@@ -63,25 +63,25 @@ pub fn regstaff_can_list_all_members_test() {
     testing.get("/admin/members", [])
     |> test_helpers.set_session_cookie(regstaff)
 
-  let response = router.handle_request(req, conf, conn)
+  let response = router.handle_request(req, conf, db_coord)
 
   // Should return 200 OK
   let assert 200 = response.status
 
   // Cleanup
-  let _ = cleanup_test_member(conn, test_email)
+  let _ = cleanup_test_member(db_coord, test_email)
 }
 
 pub fn member_can_access_own_details_test() {
-  let assert Ok(conn) = setup_test_db()
+  let assert Ok(db_coord) = setup_test_db()
   let test_email = "owndetails@example.com"
   let conf = config.load()
 
   // Clean up and create member user
-  let _ = cleanup_test_member(conn, test_email)
+  let _ = cleanup_test_member(db_coord, test_email)
   let assert Ok(member) =
     create_test_member_with_details(
-      conn,
+      db_coord,
       test_email,
       "password",
       "Own Details User",
@@ -95,7 +95,7 @@ pub fn member_can_access_own_details_test() {
     testing.get("/admin/members/" <> member_id_str, [])
     |> test_helpers.set_session_cookie(member)
 
-  let response = router.handle_request(req, conf, conn)
+  let response = router.handle_request(req, conf, db_coord)
 
   // Should return 200 OK
   let assert 200 = response.status
@@ -103,21 +103,21 @@ pub fn member_can_access_own_details_test() {
   let assert True = string.contains(body, member_id_str)
 
   // Cleanup
-  let _ = cleanup_test_member(conn, test_email)
+  let _ = cleanup_test_member(db_coord, test_email)
 }
 
 pub fn member_cannot_access_others_details_test() {
-  let assert Ok(conn) = setup_test_db()
+  let assert Ok(db_coord) = setup_test_db()
   let member_email = "member@example.com"
   let other_email = "other@example.com"
   let conf = config.load()
 
   // Clean up and create both users
-  let _ = cleanup_test_member(conn, member_email)
-  let _ = cleanup_test_member(conn, other_email)
+  let _ = cleanup_test_member(db_coord, member_email)
+  let _ = cleanup_test_member(db_coord, other_email)
   let assert Ok(member) =
     create_test_member_with_details(
-      conn,
+      db_coord,
       member_email,
       "password",
       "Member User",
@@ -126,7 +126,7 @@ pub fn member_cannot_access_others_details_test() {
     )
   let assert Ok(other) =
     create_test_member_with_details(
-      conn,
+      db_coord,
       other_email,
       "password",
       "Other User",
@@ -140,7 +140,7 @@ pub fn member_cannot_access_others_details_test() {
     testing.get("/admin/members/" <> other_id_str, [])
     |> test_helpers.set_session_cookie(member)
 
-  let response = router.handle_request(req, conf, conn)
+  let response = router.handle_request(req, conf, db_coord)
 
   // Should return 403 Forbidden
   let assert 403 = response.status
@@ -148,22 +148,22 @@ pub fn member_cannot_access_others_details_test() {
   let assert True = string.contains(body, "not authorised")
 
   // Cleanup
-  let _ = cleanup_test_member(conn, member_email)
-  let _ = cleanup_test_member(conn, other_email)
+  let _ = cleanup_test_member(db_coord, member_email)
+  let _ = cleanup_test_member(db_coord, other_email)
 }
 
 pub fn regstaff_can_access_others_details_test() {
-  let assert Ok(conn) = setup_test_db()
+  let assert Ok(db_coord) = setup_test_db()
   let regstaff_email = "regstaff@example.com"
   let member_email = "member@example.com"
   let conf = config.load()
 
   // Clean up and create both users
-  let _ = cleanup_test_member(conn, regstaff_email)
-  let _ = cleanup_test_member(conn, member_email)
+  let _ = cleanup_test_member(db_coord, regstaff_email)
+  let _ = cleanup_test_member(db_coord, member_email)
   let assert Ok(regstaff) =
     create_test_member_with_details(
-      conn,
+      db_coord,
       regstaff_email,
       "password",
       "RegStaff User",
@@ -172,7 +172,7 @@ pub fn regstaff_can_access_others_details_test() {
     )
   let assert Ok(member) =
     create_test_member_with_details(
-      conn,
+      db_coord,
       member_email,
       "password",
       "Member User",
@@ -186,7 +186,7 @@ pub fn regstaff_can_access_others_details_test() {
     testing.get("/admin/members/" <> member_id_str, [])
     |> test_helpers.set_session_cookie(regstaff)
 
-  let response = router.handle_request(req, conf, conn)
+  let response = router.handle_request(req, conf, db_coord)
 
   // Should return 200 OK
   let assert 200 = response.status
@@ -194,6 +194,6 @@ pub fn regstaff_can_access_others_details_test() {
   let assert True = string.contains(body, member_id_str)
 
   // Cleanup
-  let _ = cleanup_test_member(conn, regstaff_email)
-  let _ = cleanup_test_member(conn, member_email)
+  let _ = cleanup_test_member(db_coord, regstaff_email)
+  let _ = cleanup_test_member(db_coord, member_email)
 }

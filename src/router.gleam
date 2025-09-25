@@ -1,13 +1,13 @@
 import config
+import db_coordinator.{type DbCoordName}
 import gleam/http.{Get, Patch, Post}
 import handlers
-import pog
 import wisp.{type Request, type Response}
 
 pub fn handle_request(
   req: Request,
   conf: config.Config,
-  db: pog.Connection,
+  db: DbCoordName,
 ) -> Response {
   use req <- middleware(req)
 

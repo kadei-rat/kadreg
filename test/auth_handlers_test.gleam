@@ -10,13 +10,13 @@ import wisp
 import wisp/testing
 
 pub fn login_success_and_me_test() {
-  let assert Ok(conn) = setup_test_db()
+  let assert Ok(db_coord) = setup_test_db()
   let test_email = "test_login@example.com"
   let test_password = "secret123"
 
   // Clean up and create test member
-  let _ = cleanup_test_member(conn, test_email)
-  let assert Ok(member) = create_test_member(conn, test_email, test_password)
+  let _ = cleanup_test_member(db_coord, test_email)
+  let assert Ok(member) = create_test_member(db_coord, test_email, test_password)
 
   // Create login request with form data
   let form_data = [
@@ -25,7 +25,7 @@ pub fn login_success_and_me_test() {
   ]
 
   let login_req = testing.post_form("/auth/login", [], form_data)
-  let login_response = handlers.login(login_req, conn)
+  let login_response = handlers.login(login_req, db_coord)
 
   // Check login response - should be a redirect
   let assert 303 = login_response.status
@@ -49,7 +49,7 @@ pub fn login_success_and_me_test() {
 
   // Now test /auth/me with the actual session cookie
   let me_req = testing.get("/auth/me", [#("cookie", session_cookie)])
-  let me_response = handlers.me(me_req, conn)
+  let me_response = handlers.me(me_req, db_coord)
 
   // Check me response
   let assert 200 = me_response.status
@@ -58,17 +58,17 @@ pub fn login_success_and_me_test() {
   let assert True = string.contains(me_body, member_id_str)
 
   // Cleanup
-  let _ = cleanup_test_member(conn, test_email)
+  let _ = cleanup_test_member(db_coord, test_email)
 }
 
 pub fn login_invalid_credentials_test() {
-  let assert Ok(conn) = setup_test_db()
+  let assert Ok(db_coord) = setup_test_db()
   let test_email = "test_login_fail@example.com"
 
   // Clean up and create test member
-  let _ = cleanup_test_member(conn, test_email)
+  let _ = cleanup_test_member(db_coord, test_email)
   let assert Ok(_member) =
-    create_test_member(conn, test_email, "correct_password")
+    create_test_member(db_coord, test_email, "correct_password")
 
   // Try login with wrong password
   let form_data = [
@@ -77,7 +77,7 @@ pub fn login_invalid_credentials_test() {
   ]
 
   let req = testing.post_form("/auth/login", [], form_data)
-  let response = handlers.login(req, conn)
+  let response = handlers.login(req, db_coord)
 
   // Check response - should redirect to root with error parameter
   let assert 303 = response.status
@@ -85,11 +85,11 @@ pub fn login_invalid_credentials_test() {
   let assert True = string.contains(location_header, "/?error=")
 
   // Cleanup
-  let _ = cleanup_test_member(conn, test_email)
+  let _ = cleanup_test_member(db_coord, test_email)
 }
 
 pub fn login_invalid_email_test() {
-  let assert Ok(conn) = setup_test_db()
+  let assert Ok(db_coord) = setup_test_db()
 
   // Try login with nonexistent email
   let form_data = [
@@ -98,7 +98,7 @@ pub fn login_invalid_email_test() {
   ]
 
   let req = testing.post_form("/auth/login", [], form_data)
-  let response = handlers.login(req, conn)
+  let response = handlers.login(req, db_coord)
 
   // Check response - should redirect to root with error parameter
   let assert 303 = response.status
@@ -107,7 +107,7 @@ pub fn login_invalid_email_test() {
 }
 
 pub fn login_malformed_request_test() {
-  let assert Ok(conn) = setup_test_db()
+  let assert Ok(db_coord) = setup_test_db()
 
   // Send malformed form data (missing password field)
   let form_data = [
@@ -115,7 +115,7 @@ pub fn login_malformed_request_test() {
   ]
 
   let req = testing.post_form("/auth/login", [], form_data)
-  let response = handlers.login(req, conn)
+  let response = handlers.login(req, db_coord)
 
   // Check response - should redirect to root with error parameter
   let assert 303 = response.status
@@ -124,10 +124,10 @@ pub fn login_malformed_request_test() {
 }
 
 pub fn logout_success_test() {
-  let assert Ok(conn) = setup_test_db()
+  let assert Ok(db_coord) = setup_test_db()
 
   let req = testing.post("/auth/logout", [], "")
-  let response = handlers.logout(req, conn)
+  let response = handlers.logout(req, db_coord)
 
   // Check response
   let assert 303 = response.status
@@ -147,20 +147,20 @@ pub fn logout_success_test() {
 }
 
 pub fn logout_no_session_test() {
-  let assert Ok(conn) = setup_test_db()
+  let assert Ok(db_coord) = setup_test_db()
 
   // Should work even without existing session
   let req = testing.post("/auth/logout", [], "")
-  let response = handlers.logout(req, conn)
+  let response = handlers.logout(req, db_coord)
 
   let assert 303 = response.status
 }
 
 pub fn me_without_session_test() {
-  let assert Ok(conn) = setup_test_db()
+  let assert Ok(db_coord) = setup_test_db()
 
   let req = testing.get("/auth/me", [])
-  let response = handlers.me(req, conn)
+  let response = handlers.me(req, db_coord)
 
   // Check response
   let assert 401 = response.status
@@ -169,13 +169,13 @@ pub fn me_without_session_test() {
 }
 
 pub fn me_invalid_session_test() {
-  let assert Ok(conn) = setup_test_db()
+  let assert Ok(db_coord) = setup_test_db()
 
   let req =
     testing.get("/auth/me", [])
     |> testing.set_cookie("kadreg_session", "INVALID", wisp.Signed)
 
-  let response = handlers.me(req, conn)
+  let response = handlers.me(req, db_coord)
 
   // Check response
   let assert 401 = response.status

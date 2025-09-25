@@ -5,12 +5,12 @@ import test_helpers.{cleanup_test_member, get_location_header, setup_test_db}
 import wisp/testing
 
 pub fn signup_success_test() {
-  let assert Ok(conn) = setup_test_db()
+  let assert Ok(db_coord) = setup_test_db()
   let test_email = "newsignup@example.com"
   let conf = config.load()
 
   // Clean up any existing test member
-  let _ = cleanup_test_member(conn, test_email)
+  let _ = cleanup_test_member(db_coord, test_email)
 
   // Create signup form data
   let form_data = [
@@ -25,7 +25,7 @@ pub fn signup_success_test() {
 
   // Submit signup form
   let req = testing.post_form("/members", [], form_data)
-  let response = router.handle_request(req, conf, conn)
+  let response = router.handle_request(req, conf, db_coord)
 
   // Should redirect to success page
   let assert 303 = response.status
@@ -35,11 +35,11 @@ pub fn signup_success_test() {
     string.contains(location_header, "Account%20created%20successfully")
 
   // Cleanup
-  let _ = cleanup_test_member(conn, test_email)
+  let _ = cleanup_test_member(db_coord, test_email)
 }
 
 pub fn signup_validation_failure_test() {
-  let assert Ok(conn) = setup_test_db()
+  let assert Ok(db_coord) = setup_test_db()
   let conf = config.load()
 
   // Create signup form data with password that's too short
@@ -56,7 +56,7 @@ pub fn signup_validation_failure_test() {
 
   // Submit signup form
   let req = testing.post_form("/members", [], form_data)
-  let response = router.handle_request(req, conf, conn)
+  let response = router.handle_request(req, conf, db_coord)
 
   // Should redirect to signup page with error
   let assert 303 = response.status
@@ -70,7 +70,7 @@ pub fn signup_validation_failure_test() {
 }
 
 pub fn signup_missing_field_test() {
-  let assert Ok(conn) = setup_test_db()
+  let assert Ok(db_coord) = setup_test_db()
   let conf = config.load()
 
   // Create signup form data missing required field (legal_name)
@@ -86,7 +86,7 @@ pub fn signup_missing_field_test() {
 
   // Submit signup form
   let req = testing.post_form("/members", [], form_data)
-  let response = router.handle_request(req, conf, conn)
+  let response = router.handle_request(req, conf, db_coord)
 
   // Should redirect to signup page with error
   let assert 303 = response.status
