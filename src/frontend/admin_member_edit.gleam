@@ -47,11 +47,6 @@ pub fn member_edit_page(
           attribute.class("member-edit-form"),
         ],
         [
-          html.input([
-            attribute.type_("hidden"),
-            attribute.name("_method"),
-            attribute.value("PATCH"),
-          ]),
           html.div([attribute.class("form-sections")], [
             // Basic information section
             form_section("Basic Information", [

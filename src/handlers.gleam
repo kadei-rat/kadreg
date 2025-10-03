@@ -94,7 +94,7 @@ pub fn create_member(
   |> result.unwrap_both
 }
 
-// Update a member - PATCH /members (self-edit)
+// Update a member - POST /members (self-edit)
 pub fn update_member(
   req: Request,
   db: DbCoordName,
@@ -120,7 +120,8 @@ pub fn update_member(
   |> result.map(fn(_member) { wisp.redirect("/") })
   |> result.map_error(fn(err) {
     wisp.redirect(
-      "/edit?error=" <> uri.percent_encode(errors.to_public_string(err)),
+      "/membership/edit?error="
+      <> uri.percent_encode(errors.to_public_string(err)),
     )
   })
   |> result.unwrap_both

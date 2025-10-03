@@ -39,11 +39,6 @@ pub fn dashboard_edit_page(
           attribute.class("member-edit-form"),
         ],
         [
-          html.input([
-            attribute.type_("hidden"),
-            attribute.name("_method"),
-            attribute.value("PATCH"),
-          ]),
           html.div([attribute.class("form-sections")], [
             // Basic information section
             form_section("Basic Information", [
@@ -64,7 +59,7 @@ pub fn dashboard_edit_page(
               ),
             ]),
 
-            // Contact information section  
+            // Contact information section
             form_section("Contact Information", [
               form_field(
                 "Phone Number",

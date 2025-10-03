@@ -1,6 +1,6 @@
 import config
 import db_coordinator.{type DbCoordName}
-import gleam/http.{Get, Patch, Post}
+import gleam/http.{Get, Post}
 import handlers
 import wisp.{type Request, type Response}
 
@@ -33,11 +33,11 @@ pub fn handle_request(
     ["auth", "logout"], Post -> handlers.logout(req, db)
     ["auth", "me"], Get -> handlers.me(req, db)
     ["members"], Post -> handlers.create_member(req, db, conf)
-    ["members", membership_id], Patch ->
+    ["members", membership_id], Post ->
       handlers.update_member(req, db, membership_id)
     ["members", membership_id, "delete"], Post ->
       handlers.delete_member(req, db, membership_id)
-    ["admin", "members", membership_id], Patch ->
+    ["admin", "members", membership_id], Post ->
       handlers.admin_update_member(req, db, conf, membership_id)
 
     ["health"], Get -> {
@@ -64,10 +64,7 @@ fn middleware(req: Request, handle_request: fn(Request) -> Response) -> Response
 fn cors_middleware(handle_request: fn() -> Response) -> Response {
   handle_request()
   |> wisp.set_header("access-control-allow-origin", "*")
-  |> wisp.set_header(
-    "access-control-allow-methods",
-    "GET, POST, PATCH, DELETE, OPTIONS",
-  )
+  |> wisp.set_header("access-control-allow-methods", "GET, POST, OPTIONS")
   |> wisp.set_header(
     "access-control-allow-headers",
     "Content-Type, Authorization",
