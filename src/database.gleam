@@ -24,25 +24,6 @@ pub fn connect(config: config.Config, pool_name) {
   pog.start(db_config)
 }
 
-pub fn inspect_query_error(error: pog.QueryError) -> String {
-  case error {
-    pog.ConstraintViolated(_message, _constraint, detail) -> detail
-    pog.PostgresqlError(code, name, message) ->
-      "PostgreSQL error: " <> code <> " (" <> name <> "): " <> message
-    pog.UnexpectedArgumentCount(expected, got) ->
-      "Unexpected argument count: expected "
-      <> int.to_string(expected)
-      <> ", got "
-      <> int.to_string(got)
-    pog.UnexpectedArgumentType(expected, got) ->
-      "Unexpected argument type: expected " <> expected <> ", got " <> got
-    pog.UnexpectedResultType(decode_errors) ->
-      utils.decode_errors_to_string(decode_errors)
-    pog.QueryTimeout -> "Query timed out"
-    pog.ConnectionUnavailable -> "Connection unavailable"
-  }
-}
-
 pub fn to_app_error(error: pog.QueryError) -> AppError {
   case error {
     pog.ConstraintViolated(_message, _constraint, detail) ->
