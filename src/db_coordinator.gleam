@@ -9,7 +9,7 @@ import gleam/string
 import gleam/time/duration
 import gleam/time/timestamp.{type Timestamp}
 import logging
-import models/members.{type MemberRecord}
+import models/members.{type MemberRecord, type MemberStats}
 import pog
 
 // Public api
@@ -22,9 +22,9 @@ pub type Message {
     query: pog.Query(MemberRecord),
     reply_to: Subject(Result(pog.Returned(MemberRecord), AppError)),
   )
-  CountQuery(
-    query: pog.Query(Int),
-    reply_to: Subject(Result(pog.Returned(Int), AppError)),
+  StatsQuery(
+    query: pog.Query(MemberStats),
+    reply_to: Subject(Result(pog.Returned(MemberStats), AppError)),
   )
   NoResultQuery(
     query: pog.Query(Nil),
@@ -39,11 +39,11 @@ pub fn member_query(
   call_db_coordinator(MemberQuery(query, _), db_coord_name)
 }
 
-pub fn count_query(
-  query: pog.Query(Int),
+pub fn stats_query(
+  query: pog.Query(MemberStats),
   db_coord_name: DbCoordName,
-) -> Result(pog.Returned(Int), AppError) {
-  call_db_coordinator(CountQuery(query, _), db_coord_name)
+) -> Result(pog.Returned(MemberStats), AppError) {
+  call_db_coordinator(StatsQuery(query, _), db_coord_name)
 }
 
 pub fn noresult_query(
@@ -82,6 +82,7 @@ type State {
     conf: Config,
     last_query_time: Option(Timestamp),
     pool_name: process.Name(pog.Message),
+    // query_cache: Map(
   )
 }
 
@@ -95,7 +96,7 @@ fn call_db_coordinator(
 fn handle_message(state: State, message: Message) -> actor.Next(State, Message) {
   case message {
     MemberQuery(query, reply_to) -> run_query(state, query, reply_to)
-    CountQuery(query, reply_to) -> run_query(state, query, reply_to)
+    StatsQuery(query, reply_to) -> run_query(state, query, reply_to)
     NoResultQuery(query, reply_to) -> run_query(state, query, reply_to)
   }
 }

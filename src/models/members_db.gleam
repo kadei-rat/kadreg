@@ -6,7 +6,7 @@ import gleam/json
 import gleam/option.{None, Some}
 import gleam/result
 import gleam/string
-import models/members
+import models/members.{type MemberStats, MemberStats}
 import models/membership_id.{type MembershipId}
 import models/role
 import pog
@@ -118,71 +118,44 @@ pub fn list(db: DbCoordName) -> Result(List(members.MemberRecord), AppError) {
   Ok(rows.rows)
 }
 
-pub fn get_stats(db: DbCoordName) -> Result(members.MemberStats, AppError) {
-  let total_sql =
-    "SELECT COUNT(*) as count FROM members WHERE deleted_at IS NULL"
-  let recent_sql =
-    "SELECT COUNT(*) as count FROM members WHERE deleted_at IS NULL AND created_at > NOW() - INTERVAL '30 days'"
-  let staff_sql =
-    "SELECT COUNT(*) as count FROM members WHERE deleted_at IS NULL AND role IN ('Staff', 'RegStaff', 'Director', 'Sysadmin')"
-  let deleted_sql =
-    "SELECT COUNT(*) as count FROM members WHERE deleted_at IS NOT NULL"
+pub fn get_stats(db: DbCoordName) -> Result(MemberStats, AppError) {
+  let sql =
+    "
+    SELECT
+    COUNT(*) FILTER (WHERE deleted_at IS NULL) as total,
+    COUNT(*) FILTER (WHERE deleted_at IS NULL AND created_at > NOW() - INTERVAL '30 days') as recent,
+    COUNT(*) FILTER (WHERE deleted_at IS NULL AND role IN ('Staff', 'RegStaff', 'Director', 'Sysadmin')) as staff,
+    COUNT(*) FILTER (WHERE deleted_at IS NOT NULL) as deleted
+    FROM members
+    "
 
-  let count_decoder = {
-    use count <- decode.field("count", decode.int)
-    decode.success(count)
+  let stats_decoder = {
+    use total_members <- decode.field("total", decode.int)
+    use recent_signups <- decode.field("recent", decode.int)
+    use total_staff <- decode.field("staff", decode.int)
+    use total_deleted <- decode.field("deleted", decode.int)
+
+    decode.success(MemberStats(
+      total_members: total_members,
+      recent_signups: recent_signups,
+      total_staff: total_staff,
+      total_deleted: total_deleted,
+    ))
   }
 
-  use total_rows <- result.try(
-    pog.query(total_sql)
-    |> pog.returning(count_decoder)
-    |> db_coordinator.count_query(db),
-  )
-
-  use recent_rows <- result.try(
-    pog.query(recent_sql)
-    |> pog.returning(count_decoder)
-    |> db_coordinator.count_query(db),
-  )
-
-  use staff_rows <- result.try(
-    pog.query(staff_sql)
-    |> pog.returning(count_decoder)
-    |> db_coordinator.count_query(db),
-  )
-
-  use deleted_rows <- result.try(
-    pog.query(deleted_sql)
-    |> pog.returning(count_decoder)
-    |> db_coordinator.count_query(db),
-  )
-
-  let total_members = case total_rows.rows {
-    [count] -> count
-    _ -> 0
-  }
-
-  let recent_signups = case recent_rows.rows {
-    [count] -> count
-    _ -> 0
-  }
-
-  let total_staff = case staff_rows.rows {
-    [count] -> count
-    _ -> 0
-  }
-
-  let total_deleted = case deleted_rows.rows {
-    [count] -> count
-    _ -> 0
-  }
-
-  Ok(members.MemberStats(
-    total_members: total_members,
-    recent_signups: recent_signups,
-    total_staff: total_staff,
-    total_deleted: total_deleted,
-  ))
+  pog.query(sql)
+  |> pog.returning(stats_decoder)
+  |> db_coordinator.stats_query(db)
+  |> result.try(fn(res) {
+    case res.rows {
+      [s] -> Ok(s)
+      _ ->
+        Error(errors.internal_error(
+          errors.public_5xx_msg,
+          "Unable to parse stats db response",
+        ))
+    }
+  })
 }
 
 pub fn authenticate(
