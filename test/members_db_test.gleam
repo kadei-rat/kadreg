@@ -100,7 +100,8 @@ pub fn get_member_test() {
 
   // Test get with invalid membership ID
   let invalid_id = membership_id.from_number(999)
-  let assert Error(errors.NotFoundError(msg)) = members_db.get(db_coord, invalid_id)
+  let assert Error(errors.NotFoundError(msg)) =
+    members_db.get(db_coord, invalid_id)
   let assert True = msg == "Member not found"
 
   // Clean up

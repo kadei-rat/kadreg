@@ -1,4 +1,5 @@
 import errors.{type AppError}
+import gleam/json
 import gleam/option.{type Option}
 import gleam/result
 import gleam/string
@@ -106,4 +107,16 @@ fn validate(result: Bool, err_msg: String) -> Result(Nil, AppError) {
     True -> Ok(Nil)
     False -> Error(errors.validation_error(err_msg, err_msg))
   }
+}
+
+pub fn member_to_json(member: MemberRecord) -> json.Json {
+  json.object([
+    #("email_address", json.string(member.email_address)),
+    #("legal_name", json.string(member.legal_name)),
+    #("date_of_birth", json.string(member.date_of_birth)),
+    #("handle", json.string(member.handle)),
+    #("postal_address", json.string(member.postal_address)),
+    #("phone_number", json.string(member.phone_number)),
+    #("role", json.string(role.to_string(member.role))),
+  ])
 }

@@ -1,5 +1,4 @@
 -- Rollback for 001_create_members_table.sql
--- This will completely remove the members table and related objects
 
 -- Drop the trigger first
 DROP TRIGGER IF EXISTS update_members_updated_at ON members;

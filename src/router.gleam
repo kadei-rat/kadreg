@@ -22,6 +22,7 @@ pub fn handle_request(
 
     // admin
     ["admin"], Get -> handlers.admin_stats(req, db, conf)
+    ["admin", "audit"], Get -> handlers.admin_audit_log(req, db, conf)
     ["admin", "members"], Get -> handlers.admin_members_list(req, db, conf)
     ["admin", "members", membership_id], Get ->
       handlers.admin_member_view(req, db, conf, membership_id)

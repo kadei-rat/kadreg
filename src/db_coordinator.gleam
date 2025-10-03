@@ -9,6 +9,7 @@ import gleam/string
 import gleam/time/duration
 import gleam/time/timestamp.{type Timestamp}
 import logging
+import models/admin_audit.{type AuditLogEntry}
 import models/members.{type MemberRecord, type MemberStats}
 import pog
 
@@ -25,6 +26,10 @@ pub type Message {
   StatsQuery(
     query: pog.Query(MemberStats),
     reply_to: Subject(Result(pog.Returned(MemberStats), AppError)),
+  )
+  AuditQuery(
+    query: pog.Query(AuditLogEntry),
+    reply_to: Subject(Result(pog.Returned(AuditLogEntry), AppError)),
   )
   NoResultQuery(
     query: pog.Query(Nil),
@@ -44,6 +49,13 @@ pub fn stats_query(
   db_coord_name: DbCoordName,
 ) -> Result(pog.Returned(MemberStats), AppError) {
   call_db_coordinator(StatsQuery(query, _), db_coord_name)
+}
+
+pub fn audit_query(
+  query: pog.Query(AuditLogEntry),
+  db_coord_name: DbCoordName,
+) -> Result(pog.Returned(AuditLogEntry), AppError) {
+  call_db_coordinator(AuditQuery(query, _), db_coord_name)
 }
 
 pub fn noresult_query(
@@ -97,6 +109,7 @@ fn handle_message(state: State, message: Message) -> actor.Next(State, Message) 
   case message {
     MemberQuery(query, reply_to) -> run_query(state, query, reply_to)
     StatsQuery(query, reply_to) -> run_query(state, query, reply_to)
+    AuditQuery(query, reply_to) -> run_query(state, query, reply_to)
     NoResultQuery(query, reply_to) -> run_query(state, query, reply_to)
   }
 }

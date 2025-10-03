@@ -16,7 +16,8 @@ pub fn login_success_and_me_test() {
 
   // Clean up and create test member
   let _ = cleanup_test_member(db_coord, test_email)
-  let assert Ok(member) = create_test_member(db_coord, test_email, test_password)
+  let assert Ok(member) =
+    create_test_member(db_coord, test_email, test_password)
 
   // Create login request with form data
   let form_data = [

@@ -1,4 +1,3 @@
--- Create members table for furry convention registration system
 CREATE TYPE member_role AS ENUM ('Member', 'Staff', 'RegStaff', 'Director', 'Sysadmin');
 
 CREATE TABLE members (

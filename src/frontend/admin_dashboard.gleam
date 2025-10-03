@@ -37,6 +37,11 @@ fn build_admin_nav_items(current_path: String) -> List(NavItem) {
       "/admin/members",
       string.starts_with(current_path, "/admin/members"),
     ),
+    NavItem(
+      "Audit Log",
+      "/admin/audit",
+      string.starts_with(current_path, "/admin/audit"),
+    ),
     NavItem("Back to my membership", "/", current_path == "/"),
   ]
 }

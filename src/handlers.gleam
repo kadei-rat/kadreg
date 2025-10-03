@@ -2,6 +2,7 @@ import authorization
 import config
 import db_coordinator.{type DbCoordName}
 import errors
+import frontend/admin_audit
 import frontend/admin_dashboard
 import frontend/admin_member_edit
 import frontend/admin_member_view
@@ -20,6 +21,7 @@ import gleam/result
 import gleam/uri
 import logging
 import lustre/element
+import models/admin_audit_db
 import models/members
 import models/members_db
 import models/membership_id
@@ -358,7 +360,12 @@ pub fn admin_update_member(
   })
   |> result.try(fn(data) {
     let #(target_id, update_req) = data
-    members_db.admin_update(db, target_id, update_req)
+    members_db.admin_update(
+      db,
+      session_data.membership_id,
+      target_id,
+      update_req,
+    )
   })
   |> result.map(fn(_member) {
     wisp.redirect("/admin/members/" <> membership_id_str)
@@ -372,6 +379,27 @@ pub fn admin_update_member(
       <> uri.percent_encode(errors.to_public_string(err)),
     )
   })
+  |> result.unwrap_both
+}
+
+pub fn admin_audit_log(
+  req: Request,
+  db: DbCoordName,
+  conf: config.Config,
+) -> Response {
+  use session_data <- session.require_session(req)
+
+  authorization.check_manage_members(session_data)
+  |> result.try(fn(_) { admin_audit_db.get_actions(db) })
+  |> result.map(fn(audit_entries) {
+    [admin_audit.view(audit_entries)]
+    |> admin_dashboard.view(req.path)
+    |> layout.view(conf.con_name, Tables)
+    |> element.to_document_string_tree
+    |> wisp.html_response(200)
+  })
+  |> utils.spy_on_result(log_request("admin_audit_log", req, _))
+  |> result.map_error(errors.error_to_response)
   |> result.unwrap_both
 }
 

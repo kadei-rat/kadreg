@@ -38,15 +38,25 @@ pub fn setup_test_db() -> Result(db_coordinator.DbCoordName, AppError) {
 pub fn cleanup_test_member(
   db_coord_name: db_coordinator.DbCoordName,
   email: String,
-) -> Result(Nil, String) {
+) {
+  // Clean up audit entries first (to avoid FK constraint violations)
+  let audit_cleanup_query =
+    pog.query(
+      "DELETE FROM admin_audit_log WHERE performed_by IN (SELECT membership_num FROM members WHERE email_address = $1) OR target_member IN (SELECT membership_num FROM members WHERE email_address = $1)",
+    )
+    |> pog.parameter(pog.text(email))
+
+  use _ <- result.try(db_coordinator.noresult_query(
+    audit_cleanup_query,
+    db_coord_name,
+  ))
+
+  // Clean up member
   let query =
     pog.query("DELETE FROM members WHERE email_address = $1")
     |> pog.parameter(pog.text(email))
 
-  case db_coordinator.noresult_query(query, db_coord_name) {
-    Ok(_) -> Ok(Nil)
-    Error(_) -> Error("Cleanup failed")
-  }
+  db_coordinator.noresult_query(query, db_coord_name)
 }
 
 pub fn create_test_member(

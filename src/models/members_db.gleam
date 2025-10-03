@@ -6,6 +6,8 @@ import gleam/json
 import gleam/option.{None, Some}
 import gleam/result
 import gleam/string
+import models/admin_audit
+import models/admin_audit_db
 import models/members.{type MemberStats, MemberStats}
 import models/membership_id.{type MembershipId}
 import models/role
@@ -225,7 +227,7 @@ pub fn update_profile(
         SET email_address = $1, legal_name = $2, handle = $3, postal_address = $4,
         phone_number = $5, password_hash = $6, updated_at = NOW()
         WHERE membership_num = $7 AND deleted_at IS NULL
-        RETURNING membership_num, email_address, legal_name,
+        RETURNING membership_num, email_address, legal_name, date_of_birth,
                   handle, postal_address, phone_number, password_hash, role,
                   created_at::text, updated_at::text, deleted_at::text
       "
@@ -259,11 +261,15 @@ pub fn update_profile(
 
 pub fn admin_update(
   db: DbCoordName,
+  performed_by: MembershipId,
   membership_id: MembershipId,
   request: members.AdminUpdateMemberRequest,
 ) -> Result(members.MemberRecord, AppError) {
   // Convert membership ID to number for database query
   use membership_num <- result.try(membership_id.to_number(membership_id))
+
+  // Get old member record before updating for audit trail
+  use old_member <- result.try(get(db, membership_id))
 
   let sql =
     "
@@ -291,7 +297,24 @@ pub fn admin_update(
   )
 
   case rows.rows {
-    [member] -> Ok(member)
+    [member] -> {
+      // Log the admin action
+      let old_values = members.member_to_json(old_member)
+      let new_values = members.member_to_json(member)
+
+      // Log to audit table (don't fail the update if audit logging fails)
+      let _ =
+        admin_audit_db.log_admin_action(
+          db,
+          performed_by,
+          admin_audit.UpdateMember,
+          membership_id,
+          old_values,
+          new_values,
+        )
+
+      Ok(member)
+    }
     [] -> Error(errors.not_found_error("Member not found or already deleted"))
     _ ->
       Error(errors.internal_error(
