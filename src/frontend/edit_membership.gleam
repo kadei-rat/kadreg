@@ -28,10 +28,6 @@ pub fn dashboard_edit_page(
           html.div([attribute.class("error-banner")], [html.text(err_msg)])
         None -> html.div([], [])
       },
-    ]),
-
-    // Edit form
-    html.div([attribute.class("card")], [
       html.form(
         [
           attribute.method("post"),

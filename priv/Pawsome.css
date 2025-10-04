@@ -269,7 +269,7 @@ body {
   border-radius: 16px;
   padding: 32px;
   margin-bottom: 24px;
-  box-shadow: 
+  box-shadow:
     0 4px 6px rgba(0, 0, 0, 0.05),
     0 1px 3px rgba(0, 0, 0, 0.1);
 }
@@ -697,37 +697,59 @@ body {
 
 /* Responsive design */
 @media (max-width: 768px) {
+  .dashboard-nav {
+    position: static;
+  }
+
   .dashboard-nav-container {
     flex-direction: column;
     height: auto;
     padding: 16px 20px;
   }
-  
+
   .dashboard-nav-brand {
     margin-bottom: 12px;
   }
-  
+
   .dashboard-nav-links {
-    flex-wrap: wrap;
-    justify-content: center;
+    flex-direction: column;
+    width: 100%;
   }
-  
+
+  .dashboard-nav-link {
+    padding: 8px 20px;
+  }
+
   .dashboard-main {
-    padding: 20px 16px;
+    padding: 20px 0;
   }
-  
+
   .card {
     padding: 20px;
   }
-  
+
   .card-header {
     flex-direction: column;
     align-items: flex-start;
     gap: 16px;
   }
-  
+
   .stats-grid {
     grid-template-columns: 1fr;
+  }
+
+  .member-details-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .form-fields {
+    grid-template-columns: 1fr;
+  }
+
+  .table {
+    display: block;
+    overflow-x: auto;
+    white-space: nowrap;
   }
 }
 
