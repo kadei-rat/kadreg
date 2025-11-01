@@ -44,7 +44,7 @@ pub fn update_member_self_test() {
   let form_data =
     update_form_data("update@example.com", "Updated Name", "updated")
   let req =
-    testing.patch_form("/members/" <> member_id_str, [], form_data)
+    testing.post_form("/members/" <> member_id_str, [], form_data)
     |> test_helpers.set_session_cookie(member)
   let response = router.handle_request(req, conf, db_coord)
 
@@ -70,7 +70,7 @@ pub fn update_member_unauthorized_test() {
 
   let member_id_str = membership_id.to_string(member.membership_id)
   let form_data = update_form_data("unauth@example.com", "Hacked", "hacker")
-  let req = testing.patch_form("/members/" <> member_id_str, [], form_data)
+  let req = testing.post_form("/members/" <> member_id_str, [], form_data)
   let response = router.handle_request(req, conf, db_coord)
 
   let assert 401 = response.status
@@ -113,7 +113,7 @@ pub fn admin_update_member_test() {
       "Member",
     )
   let req =
-    testing.patch_form("/admin/members/" <> member_id_str, [], form_data)
+    testing.post_form("/admin/members/" <> member_id_str, [], form_data)
     |> test_helpers.set_session_cookie(admin)
   let response = router.handle_request(req, conf, db_coord)
 
