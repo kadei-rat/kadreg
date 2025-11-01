@@ -52,11 +52,18 @@ pub fn cleanup_test_member(
   ))
 
   // Clean up member
-  let query =
+  let query_mem =
     pog.query("DELETE FROM members WHERE email_address = $1")
     |> pog.parameter(pog.text(email))
 
-  db_coordinator.noresult_query(query, db_coord_name)
+  let query_pendingmem =
+    pog.query("DELETE FROM pending_members WHERE email_address = $1")
+    |> pog.parameter(pog.text(email))
+
+  result.all([
+    db_coordinator.noresult_query(query_mem, db_coord_name),
+    db_coordinator.noresult_query(query_pendingmem, db_coord_name),
+  ])
 }
 
 pub fn create_test_member(

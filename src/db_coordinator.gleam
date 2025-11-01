@@ -11,6 +11,7 @@ import gleam/time/timestamp.{type Timestamp}
 import logging
 import models/admin_audit.{type AuditLogEntry}
 import models/members.{type MemberRecord, type MemberStats}
+import models/pending_members.{type PendingMemberRecord}
 import pog
 
 // Public api
@@ -22,6 +23,10 @@ pub type Message {
   MemberQuery(
     query: pog.Query(MemberRecord),
     reply_to: Subject(Result(pog.Returned(MemberRecord), AppError)),
+  )
+  PendingMemberQuery(
+    query: pog.Query(PendingMemberRecord),
+    reply_to: Subject(Result(pog.Returned(PendingMemberRecord), AppError)),
   )
   StatsQuery(
     query: pog.Query(MemberStats),
@@ -42,6 +47,13 @@ pub fn member_query(
   db_coord_name: DbCoordName,
 ) -> Result(pog.Returned(MemberRecord), AppError) {
   call_db_coordinator(MemberQuery(query, _), db_coord_name)
+}
+
+pub fn pending_member_query(
+  query: pog.Query(PendingMemberRecord),
+  db_coord_name: DbCoordName,
+) -> Result(pog.Returned(PendingMemberRecord), AppError) {
+  call_db_coordinator(PendingMemberQuery(query, _), db_coord_name)
 }
 
 pub fn stats_query(
@@ -108,6 +120,7 @@ fn call_db_coordinator(
 fn handle_message(state: State, message: Message) -> actor.Next(State, Message) {
   case message {
     MemberQuery(query, reply_to) -> run_query(state, query, reply_to)
+    PendingMemberQuery(query, reply_to) -> run_query(state, query, reply_to)
     StatsQuery(query, reply_to) -> run_query(state, query, reply_to)
     AuditQuery(query, reply_to) -> run_query(state, query, reply_to)
     NoResultQuery(query, reply_to) -> run_query(state, query, reply_to)

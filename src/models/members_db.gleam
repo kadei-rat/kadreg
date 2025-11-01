@@ -13,6 +13,8 @@ import models/membership_id.{type MembershipId}
 import models/role
 import pog
 
+// Now only used by tests that need to create a member; normal member sign-up
+// goes though pending_members
 pub fn create(
   db: DbCoordName,
   request: members.CreateMemberRequest,
@@ -85,6 +87,38 @@ pub fn get(
   use rows <- result.try(
     pog.query(sql)
     |> pog.parameter(pog.int(membership_num))
+    |> pog.returning(decode_member_from_db())
+    |> db_coordinator.member_query(db),
+  )
+
+  case rows.rows {
+    [member] -> Ok(member)
+    [] -> Error(errors.not_found_error("Member not found"))
+    _ ->
+      Error(errors.internal_error(
+        errors.public_5xx_msg,
+        "Multiple members found (unexpected)",
+      ))
+  }
+}
+
+// used by tests
+pub fn get_by_email(
+  db: db_coordinator.DbCoordName,
+  email: String,
+) -> Result(members.MemberRecord, errors.AppError) {
+  let sql =
+    "
+    SELECT membership_num, email_address, legal_name, date_of_birth,
+           handle, postal_address, phone_number, password_hash, role,
+           created_at::text, updated_at::text, deleted_at::text
+    FROM members
+    WHERE email_address = $1 AND deleted_at IS NULL
+  "
+
+  use rows <- result.try(
+    pog.query(sql)
+    |> pog.parameter(pog.text(email))
     |> pog.returning(decode_member_from_db())
     |> db_coordinator.member_query(db),
   )

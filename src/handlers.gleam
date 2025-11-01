@@ -1,6 +1,7 @@
 import authorization
 import config
 import db_coordinator.{type DbCoordName}
+import email
 import errors
 import frontend/admin_audit
 import frontend/admin_dashboard
@@ -25,6 +26,7 @@ import models/admin_audit_db
 import models/members
 import models/members_db
 import models/membership_id
+import models/pending_members_db
 import models/role
 import session
 import utils
@@ -70,21 +72,28 @@ pub fn signup_page(
 
 // API routes
 
-// POST /members (Create a new member)
+// POST /members (Create a new pending member)
 pub fn create_member(
   req: Request,
   db: DbCoordName,
-  _conf: config.Config,
+  conf: config.Config,
 ) -> Response {
   use formdata <- wisp.require_form(req)
 
   decode_form_create_member_request(formdata.values)
   |> result.try(members.validate_member_request)
-  |> result.try(members_db.create(db, _))
-  |> result.map(fn(_member) {
+  |> result.try(pending_members_db.create(db, _))
+  |> result.map(fn(pending_member) {
+    email.send_email_confirmation_email(
+      conf.base_url,
+      pending_member.email_address,
+      pending_member.email_confirm_token,
+    )
     wisp.redirect(
       "/?success="
-      <> uri.percent_encode("Account created successfully! Please login."),
+      <> uri.percent_encode(
+        "Account created! Please check your email to confirm your address.",
+      ),
     )
   })
   |> utils.spy_on_result(log_request("create_member", req, _))
@@ -197,6 +206,28 @@ pub fn me(req: Request, _db: DbCoordName) -> Response {
     }
     Error(err) -> errors.error_to_response(err)
   }
+}
+
+// GET /auth/confirm_email (Confirm email and convert pending member to member)
+pub fn confirm_email(req: Request, db: DbCoordName) -> Response {
+  use email <- required_val_from_querystring(req, "email")
+  use token <- required_val_from_querystring(req, "token")
+
+  percent_decode(email)
+  |> result.try(pending_members_db.confirm_and_convert_to_member(db, _, token))
+  |> result.map(fn(_member) {
+    wisp.redirect(
+      "/?success="
+      <> uri.percent_encode("Email confirmed successfully! You can now log in."),
+    )
+  })
+  |> utils.spy_on_result(log_request("confirm_email", req, _))
+  |> result.map_error(fn(err) {
+    wisp.redirect(
+      "/?error=" <> uri.percent_encode(errors.to_public_string(err)),
+    )
+  })
+  |> result.unwrap_both
 }
 
 pub fn view_membership(
@@ -537,6 +568,35 @@ fn val_from_querystring(
     Ok(#(_, msg)) -> Some(msg)
     Error(_) -> None
   }
+}
+
+fn required_val_from_querystring(
+  req: Request,
+  key: String,
+  next: fn(String) -> Response,
+) -> Response {
+  let query_params = wisp.get_query(req)
+  case query_params |> utils.find_first(fn(pair) { pair.0 == key }) {
+    Ok(#(_, msg)) -> next(msg)
+    Error(_) -> {
+      log_request(
+        req.path,
+        req,
+        Error(errors.validation_error("", "Missing query parameter: " <> key)),
+      )
+      wisp.redirect(
+        "/?error=" <> uri.percent_encode("Missing query parameter: " <> key),
+      )
+    }
+  }
+}
+
+fn percent_decode(val: String) -> Result(String, errors.AppError) {
+  uri.percent_decode(val)
+  |> result.replace_error(errors.validation_error(
+    "Malformed percent-encoded value",
+    "Failed to percent-decode value: " <> val,
+  ))
 }
 
 fn get_field(

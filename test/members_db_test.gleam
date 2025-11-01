@@ -17,20 +17,9 @@ pub fn create_member_test() {
   // Clean up any existing test data
   let _ = cleanup_test_member(db_coord, test_email)
 
-  let request =
-    members.CreateMemberRequest(
-      email_address: test_email,
-      legal_name: "Test User",
-      date_of_birth: "1990-01-01",
-      handle: "testuser",
-      postal_address: "123 Test St",
-      phone_number: "555-0123",
-      password: "testpassword123",
-      role: option.Some(role.Member),
-    )
-
-  // Test creation
-  let assert Ok(created_member) = members_db.create(db_coord, request)
+  // Test creation using test helper (bypasses pending member flow)
+  let assert Ok(created_member) =
+    test_helpers.create_test_member(db_coord, test_email, "testpassword123")
 
   // Verify the created member
   let assert True = created_member.membership_num > 0
@@ -70,20 +59,16 @@ pub fn get_member_test() {
   // Clean up any existing test data
   let _ = cleanup_test_member(db_coord, test_email)
 
-  let request =
-    members.CreateMemberRequest(
-      email_address: test_email,
-      legal_name: "Get Test User",
-      date_of_birth: "1985-05-15",
-      handle: "gettest",
-      postal_address: "456 Get Ave",
-      phone_number: "555-0456",
-      password: "getpassword123",
-      role: option.Some(role.Staff),
+  // Create a member first using test helper
+  let assert Ok(created_member) =
+    test_helpers.create_test_member_with_details(
+      db_coord,
+      test_email,
+      "getpassword123",
+      "Get Test User",
+      "gettest",
+      role.Staff,
     )
-
-  // Create a member first
-  let assert Ok(created_member) = members_db.create(db_coord, request)
 
   // Test get by membership ID
   let assert Ok(retrieved_member) =
