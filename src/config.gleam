@@ -12,6 +12,7 @@ pub type Config {
     // general config
     kadreg_env: Environment,
     con_name: String,
+    base_url: String,
     // database configuration
     db_url: String,
     db_name_suffix: String,
@@ -41,6 +42,10 @@ pub fn load() -> Config {
   let con_name =
     envoy.get("CON_NAME")
     |> result.unwrap("Pawsome")
+
+  let base_url =
+    envoy.get("BASE_URL")
+    |> result.unwrap("http://localhost:8621")
 
   let db_url =
     envoy.get("DATABASE_URL")
@@ -80,6 +85,7 @@ pub fn load() -> Config {
   Config(
     kadreg_env: kadreg_env,
     con_name: con_name,
+    base_url: base_url,
     db_url: db_url,
     db_name_suffix: db_name_suffix,
     db_pool_size: db_pool_size,

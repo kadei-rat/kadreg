@@ -33,6 +33,7 @@ pub fn handle_request(
     ["auth", "login"], Post -> handlers.login(req, db)
     ["auth", "logout"], Post -> handlers.logout(req, db)
     ["auth", "me"], Get -> handlers.me(req, db)
+    ["auth", "confirm_email"], Get -> handlers.confirm_email(req, db)
     ["members"], Post -> handlers.create_member(req, db, conf)
     ["members", membership_id], Post ->
       handlers.update_member(req, db, membership_id)

@@ -1,6 +1,5 @@
 // Integration tests for admin audit logging
 import gleam/list
-import gleam/option
 import models/admin_audit
 import models/admin_audit_db
 import models/members
@@ -21,34 +20,26 @@ pub fn admin_update_audit_log_test() {
   let assert Ok(_) = cleanup_test_member(db_coord, update_email)
 
   // Create admin user
-  let admin_request =
-    members.CreateMemberRequest(
-      email_address: admin_email,
-      legal_name: "Admin User",
-      date_of_birth: "1985-01-01",
-      handle: "adminaudituser",
-      postal_address: "123 Admin St",
-      phone_number: "555-0100",
-      password: "adminpass123",
-      role: option.Some(role.RegStaff),
+  let assert Ok(admin_member) =
+    test_helpers.create_test_member_with_details(
+      db_coord,
+      admin_email,
+      "adminpass123",
+      "Admin User",
+      "adminaudituser",
+      role.RegStaff,
     )
-
-  let assert Ok(admin_member) = members_db.create(db_coord, admin_request)
 
   // Create target member to be edited
-  let target_request =
-    members.CreateMemberRequest(
-      email_address: target_email,
-      legal_name: "Target User",
-      date_of_birth: "1990-05-15",
-      handle: "targetaudituser",
-      postal_address: "456 Target Ave",
-      phone_number: "555-0200",
-      password: "targetpass123",
-      role: option.Some(role.Member),
+  let assert Ok(target_member) =
+    test_helpers.create_test_member_with_details(
+      db_coord,
+      target_email,
+      "targetpass123",
+      "Target User",
+      "targetaudituser",
+      role.Member,
     )
-
-  let assert Ok(target_member) = members_db.create(db_coord, target_request)
 
   // Get initial audit log count
   let assert Ok(initial_audit_entries) = admin_audit_db.get_actions(db_coord)

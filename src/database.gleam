@@ -28,6 +28,8 @@ pub fn to_app_error(error: pog.QueryError) -> AppError {
   case error {
     pog.ConstraintViolated(_message, _constraint, detail) ->
       errors.validation_error(detail, string.inspect(error))
+    pog.PostgresqlError("23505", _, message) ->
+      errors.validation_error(message, string.inspect(error))
     pog.PostgresqlError(code, name, message) ->
       errors.internal_error(
         public_5xx_msg,
