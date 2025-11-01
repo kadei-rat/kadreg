@@ -1,5 +1,9 @@
 # kadreg
 
+### Dedication
+
+This project is dedicated to the memory of Neutron.
+
 ### Why another convention registration system?
 
 There are a great many convention registration system codebases around. Most are the intellectual property of the convention that made them, maintained by its tech team. They often have few (if any) tests, and are rarely in statically typed languages. Almost none are open source.
