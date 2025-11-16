@@ -30,7 +30,7 @@ pub fn encode_member_test() {
 
   let assert True = string.contains(encoded_str, "\"membership_num\":42")
   let assert True =
-    string.contains(encoded_str, "\"membership_id\":\"PAW0042\"")
+    string.contains(encoded_str, "\"membership_id\":\"KAD0042\"")
   let assert True =
     string.contains(encoded_str, "\"email_address\":\"test@example.com\"")
   let assert True = string.contains(encoded_str, "\"legal_name\":\"Jane Doe\"")
