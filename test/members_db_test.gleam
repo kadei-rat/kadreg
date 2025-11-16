@@ -24,7 +24,6 @@ pub fn create_member_test() {
   // Verify the created member
   let assert True = created_member.membership_num > 0
   let assert True = created_member.email_address == test_email
-  let assert "Test User" = created_member.legal_name
   let assert "testuser" = created_member.handle
   let assert role.Member = created_member.role
 
@@ -79,7 +78,6 @@ pub fn get_member_test() {
     retrieved_member.membership_num == created_member.membership_num
   let assert True =
     retrieved_member.email_address == created_member.email_address
-  let assert True = retrieved_member.legal_name == created_member.legal_name
   let assert True = retrieved_member.handle == created_member.handle
   let assert True = retrieved_member.role == created_member.role
 
@@ -111,32 +109,20 @@ pub fn list_members_test() {
   let requests = [
     members.CreateMemberRequest(
       email_address: "list1@example.com",
-      legal_name: "List User 1",
-      date_of_birth: "1990-01-01",
       handle: "listuser1",
-      postal_address: "123 List St",
-      phone_number: "555-0001",
-      password: "password1",
+      password: "password1234",
       role: option.Some(role.Member),
     ),
     members.CreateMemberRequest(
       email_address: "list2@example.com",
-      legal_name: "List User 2",
-      date_of_birth: "1991-02-02",
       handle: "listuser2",
-      postal_address: "456 List Ave",
-      phone_number: "555-0002",
-      password: "password2",
+      password: "password2345",
       role: option.Some(role.Staff),
     ),
     members.CreateMemberRequest(
       email_address: "list3@example.com",
-      legal_name: "List User 3",
-      date_of_birth: "1992-03-03",
       handle: "listuser3",
-      postal_address: "789 List Blvd",
-      phone_number: "555-0003",
-      password: "password3",
+      password: "password3456",
       role: option.Some(role.Director),
     ),
   ]
@@ -188,12 +174,8 @@ pub fn duplicate_constraints_test() {
   let request1 =
     members.CreateMemberRequest(
       email_address: test_email,
-      legal_name: "Duplicate Test 1",
-      date_of_birth: "1990-01-01",
       handle: "somehandle",
-      postal_address: "123 Dup St",
-      phone_number: "555-0111",
-      password: "dup1pass",
+      password: "dup1pass1234",
       role: option.Some(role.Member),
     )
 
@@ -205,13 +187,9 @@ pub fn duplicate_constraints_test() {
     members.CreateMemberRequest(
       email_address: test_email,
       // Same email
-      legal_name: "Duplicate Test 2",
-      date_of_birth: "1991-01-01",
       handle: "differenthandle",
       // Different handle
-      postal_address: "456 Dup Ave",
-      phone_number: "555-0222",
-      password: "dup2pass",
+      password: "dup2pass1234",
       role: option.Some(role.Staff),
     )
 

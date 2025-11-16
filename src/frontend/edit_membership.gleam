@@ -38,36 +38,12 @@ pub fn dashboard_edit_page(
           html.div([attribute.class("form-sections")], [
             // Basic information section
             form_section("Basic Information", [
-              form_field(
-                "Legal Name",
-                "legal_name",
-                "text",
-                member.legal_name,
-                True,
-              ),
               form_field("Handle", "handle", "text", member.handle, True),
               form_field(
                 "Email Address",
                 "email_address",
                 "email",
                 member.email_address,
-                True,
-              ),
-            ]),
-
-            // Contact information section
-            form_section("Contact Information", [
-              form_field(
-                "Phone Number",
-                "phone_number",
-                "tel",
-                member.phone_number,
-                True,
-              ),
-              textarea_field(
-                "Address",
-                "postal_address",
-                member.postal_address,
                 True,
               ),
             ]),
@@ -166,33 +142,5 @@ fn form_field(
   html.div([attribute.class("form-group")], [
     html.label([attribute.for(name)], [html.text(label)]),
     html.input(input_attrs),
-  ])
-}
-
-fn textarea_field(
-  label: String,
-  name: String,
-  value: String,
-  required: Bool,
-) -> Element(t) {
-  let textarea_attrs = case required {
-    True -> [
-      attribute.id(name),
-      attribute.name(name),
-      attribute.class("form-input"),
-      attribute.attribute("rows", "3"),
-      attribute.required(True),
-    ]
-    False -> [
-      attribute.id(name),
-      attribute.name(name),
-      attribute.class("form-input"),
-      attribute.attribute("rows", "3"),
-    ]
-  }
-
-  html.div([attribute.class("form-group")], [
-    html.label([attribute.for(name)], [html.text(label)]),
-    html.textarea(textarea_attrs, value),
   ])
 }

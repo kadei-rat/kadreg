@@ -14,11 +14,7 @@ pub fn pending_member_flow_test() {
   let request =
     members.CreateMemberRequest(
       email_address: test_email,
-      legal_name: "Pending User",
-      date_of_birth: "1990-01-01",
       handle: "pendinguser",
-      postal_address: "123 Test St",
-      phone_number: "555-0123",
       password: "verysecurepassword123",
       role: option.None,
     )
@@ -33,7 +29,6 @@ pub fn pending_member_flow_test() {
       pending_member.email_confirm_token,
     )
   let assert True = member.email_address == test_email
-  let assert True = member.legal_name == "Pending User"
   let assert True = member.handle == "pendinguser"
 
   let assert Ok(_) = members_db.get(db, member.membership_id)
@@ -52,11 +47,7 @@ pub fn confirm_with_invalid_token_test() {
   let request =
     members.CreateMemberRequest(
       email_address: test_email,
-      legal_name: "Invalid Token User",
-      date_of_birth: "1990-01-01",
       handle: "invaliduser",
-      postal_address: "123 Test St",
-      phone_number: "555-0123",
       password: "verysecurepassword123",
       role: option.None,
     )
@@ -84,11 +75,7 @@ pub fn confirm_with_wrong_email_test() {
   let request =
     members.CreateMemberRequest(
       email_address: test_email,
-      legal_name: "Wrong Email User",
-      date_of_birth: "1990-01-01",
       handle: "wrongemailuser",
-      postal_address: "123 Test St",
-      phone_number: "555-0123",
       password: "verysecurepassword123",
       role: option.None,
     )
@@ -114,11 +101,7 @@ pub fn duplicate_pending_member_test() {
   let request =
     members.CreateMemberRequest(
       email_address: test_email,
-      legal_name: "Duplicate User",
-      date_of_birth: "1990-01-01",
       handle: "duplicateuser",
-      postal_address: "123 Test St",
-      phone_number: "555-0123",
       password: "verysecurepassword123",
       role: option.None,
     )
@@ -144,11 +127,7 @@ pub fn pending_member_with_existing_member_email_test() {
   let request =
     members.CreateMemberRequest(
       email_address: test_email,
-      legal_name: "Pending User",
-      date_of_birth: "1990-01-01",
       handle: "pendinguser",
-      postal_address: "123 Test St",
-      phone_number: "555-0123",
       password: "verysecurepassword123",
       role: option.None,
     )

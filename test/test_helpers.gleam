@@ -85,18 +85,14 @@ pub fn create_test_member_with_details(
   db_coord_name: db_coordinator.DbCoordName,
   email: String,
   password: String,
-  legal_name: String,
+  _legal_name: String,
   handle: String,
   member_role: role.Role,
 ) -> Result(members.MemberRecord, String) {
   let request =
     members.CreateMemberRequest(
       email_address: email,
-      legal_name: legal_name,
-      date_of_birth: "1990-01-01",
       handle: handle,
-      postal_address: "123 Test St",
-      phone_number: "555-0123",
       password: password,
       role: option.Some(member_role),
     )
@@ -132,48 +128,36 @@ pub fn get_location_header(response: wisp.Response) -> String {
 
 pub fn member_form_data(
   email: String,
-  name: String,
+  _name: String,
   handle: String,
 ) -> List(#(String, String)) {
   [
     #("email_address", email),
-    #("legal_name", name),
-    #("date_of_birth", "1990-01-01"),
     #("handle", handle),
-    #("postal_address", "123 Test St"),
-    #("phone_number", "555-0123"),
-    #("password", "testpass123"),
+    #("password", "testpass123456"),
   ]
 }
 
 pub fn update_form_data(
   email: String,
-  name: String,
+  _name: String,
   handle: String,
 ) -> List(#(String, String)) {
   [
     #("email_address", email),
-    #("legal_name", name),
-    #("date_of_birth", "1990-01-01"),
     #("handle", handle),
-    #("postal_address", "456 Updated St"),
-    #("phone_number", "555-9999"),
   ]
 }
 
 pub fn admin_update_form_data(
   email: String,
-  name: String,
+  _name: String,
   handle: String,
   role: String,
 ) -> List(#(String, String)) {
   [
     #("email_address", email),
-    #("legal_name", name),
-    #("date_of_birth", "1990-01-01"),
     #("handle", handle),
-    #("postal_address", "789 Admin St"),
-    #("phone_number", "555-8888"),
     #("role", role),
   ]
 }
