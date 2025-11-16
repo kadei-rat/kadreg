@@ -7,14 +7,14 @@ pub type MembershipId {
   MembershipId(String)
 }
 
-const prefix = "PAW"
+const prefix = "KAD"
 
 const total_length = 7
 
 const number_length = 4
 
 // Generate a membership ID from a membership number
-// Example: 34 -> "PAW0034"
+// Example: 34 -> "KAD0034"
 pub fn from_number(membership_num: Int) -> MembershipId {
   let padded_number =
     int.to_string(membership_num)
@@ -25,7 +25,7 @@ pub fn from_number(membership_num: Int) -> MembershipId {
 }
 
 // Extract the membership number from a membership ID
-// Example: "PAW0034" -> 34
+// Example: "KAD0034" -> 34
 pub fn to_number(membership_id: MembershipId) -> Result(Int, AppError) {
   let MembershipId(id_str) = membership_id
 
