@@ -20,7 +20,7 @@ pub fn view(
     ]),
     html.link([
       attribute.rel("stylesheet"),
-      attribute.href("/static/" <> con_name <> ".css"),
+      attribute.href("/static/main.css"),
     ]),
   ]
 
