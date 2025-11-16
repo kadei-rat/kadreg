@@ -1,16 +1,16 @@
 #!/bin/bash
 set -e
+shopt -s nullglob
 
 DB_NAME="${DB_NAME:-kadreg}"
 TEST_DB_NAME="${DB_NAME}_test"
 
-run_migrations() {
-    echo "Running migrations on $1"
+setup() {
+    echo "setting up $1"
+    psql -f database/setup.sql "$1"
     for file in migrations/*.sql; do
-        if [ -f "$file" ]; then
-            echo "  Running $(basename "$file")"
-            psql -f "$file" "$1"
-        fi
+      echo "  Running $(basename "$file")"
+      psql -f "$file" "$1"
     done
 }
 
@@ -19,7 +19,7 @@ echo "Setting up databases..."
 createdb "$DB_NAME"
 createdb "$TEST_DB_NAME"
 
-run_migrations "$DB_NAME"
-run_migrations "$TEST_DB_NAME"
+setup "$DB_NAME"
+setup "$TEST_DB_NAME"
 
 echo "Setup complete!"
