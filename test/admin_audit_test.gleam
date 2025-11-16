@@ -49,11 +49,7 @@ pub fn admin_update_audit_log_test() {
   let update_request =
     members.AdminUpdateMemberRequest(
       email_address: update_email,
-      legal_name: "Updated Name",
-      date_of_birth: "1990-05-15",
       handle: "updatedhandle",
-      postal_address: "789 Updated Blvd",
-      phone_number: "555-0300",
       role: role.Staff,
     )
 

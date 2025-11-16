@@ -20,19 +20,12 @@ pub fn view(member: MemberRecord) -> Element(t) {
       html.div([attribute.class("member-details-grid")], [
         detail_section("Basic Information", [
           detail_item("Membership ID", member_id_str),
-          detail_item("Legal Name", member.legal_name),
           detail_item("Handle", member.handle),
           detail_item("Email", member.email_address),
           detail_item("Role", role.to_string(member.role)),
         ]),
 
-        detail_section("Contact Information", [
-          detail_item("Phone Number", member.phone_number),
-          detail_item("Address", member.postal_address),
-        ]),
-
         detail_section("Account Information", [
-          detail_item("Date of Birth", member.date_of_birth),
           detail_item(
             "Member Since",
             shared_helpers.format_date(member.created_at),

@@ -32,16 +32,6 @@ pub fn view(error: Option(String)) -> Element(t) {
           ]),
         ]),
         html.div([attribute.class("form-group")], [
-          html.label([attribute.for("legal_name")], [html.text("Legal Name:")]),
-          html.input([
-            attribute.type_("text"),
-            attribute.id("legal_name"),
-            attribute.name("legal_name"),
-            attribute.required(True),
-            attribute.class("form-input"),
-          ]),
-        ]),
-        html.div([attribute.class("form-group")], [
           html.label([attribute.for("handle")], [
             html.text("Handle:"),
           ]),
@@ -52,43 +42,6 @@ pub fn view(error: Option(String)) -> Element(t) {
             attribute.required(True),
             attribute.class("form-input"),
           ]),
-        ]),
-        html.div([attribute.class("form-group")], [
-          html.label([attribute.for("date_of_birth")], [
-            html.text("Date of Birth:"),
-          ]),
-          html.input([
-            attribute.type_("date"),
-            attribute.id("date_of_birth"),
-            attribute.name("date_of_birth"),
-            attribute.required(True),
-            attribute.class("form-input"),
-          ]),
-        ]),
-        html.div([attribute.class("form-group")], [
-          html.label([attribute.for("phone_number")], [
-            html.text("Phone Number:"),
-          ]),
-          html.input([
-            attribute.type_("tel"),
-            attribute.id("phone_number"),
-            attribute.name("phone_number"),
-            attribute.required(True),
-            attribute.class("form-input"),
-          ]),
-        ]),
-        html.div([attribute.class("form-group")], [
-          html.label([attribute.for("postal_address")], [html.text("Address:")]),
-          html.textarea(
-            [
-              attribute.id("postal_address"),
-              attribute.name("postal_address"),
-              attribute.required(True),
-              attribute.class("form-input"),
-              attribute.attribute("rows", "3"),
-            ],
-            "",
-          ),
         ]),
         html.div([attribute.class("form-group")], [
           html.label([attribute.for("password")], [html.text("Password:")]),

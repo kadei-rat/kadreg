@@ -30,23 +30,17 @@ pub fn create(
   let sql =
     "
     INSERT INTO members (
-      email_address, legal_name, date_of_birth, handle,
-      postal_address, phone_number, password_hash, role
+      email_address, handle, password_hash, role
     )
-    VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-    RETURNING membership_num, email_address, legal_name, date_of_birth,
-              handle, postal_address, phone_number, password_hash, role,
+    VALUES ($1, $2, $3, $4)
+    RETURNING membership_num, email_address, handle, password_hash, role,
               created_at::text, updated_at::text, deleted_at::text
   "
 
   use rows <- result.try(
     pog.query(sql)
     |> pog.parameter(pog.text(request.email_address))
-    |> pog.parameter(pog.text(request.legal_name))
-    |> pog.parameter(pog.text(request.date_of_birth))
     |> pog.parameter(pog.text(request.handle))
-    |> pog.parameter(pog.text(request.postal_address))
-    |> pog.parameter(pog.text(request.phone_number))
     |> pog.parameter(pog.text(password_hash))
     |> pog.parameter(pog.text(role.to_string(role)))
     |> pog.returning(decode_member_from_db())
@@ -77,8 +71,7 @@ pub fn get(
 
   let sql =
     "
-    SELECT membership_num, email_address, legal_name, date_of_birth,
-           handle, postal_address, phone_number, password_hash, role,
+    SELECT membership_num, email_address, handle, password_hash, role,
            created_at::text, updated_at::text, deleted_at::text
     FROM members
     WHERE membership_num = $1 AND deleted_at IS NULL
@@ -109,8 +102,7 @@ pub fn get_by_email(
 ) -> Result(members.MemberRecord, errors.AppError) {
   let sql =
     "
-    SELECT membership_num, email_address, legal_name, date_of_birth,
-           handle, postal_address, phone_number, password_hash, role,
+    SELECT membership_num, email_address, handle, password_hash, role,
            created_at::text, updated_at::text, deleted_at::text
     FROM members
     WHERE email_address = $1 AND deleted_at IS NULL
@@ -137,8 +129,7 @@ pub fn get_by_email(
 pub fn list(db: DbCoordName) -> Result(List(members.MemberRecord), AppError) {
   let sql =
     "
-    SELECT membership_num, email_address, legal_name, date_of_birth,
-           handle, postal_address, phone_number, password_hash, role,
+    SELECT membership_num, email_address, handle, password_hash, role,
            created_at::text, updated_at::text, deleted_at::text
     FROM members
     WHERE deleted_at IS NULL
@@ -201,8 +192,7 @@ pub fn authenticate(
 ) -> Result(members.MemberRecord, AppError) {
   let sql =
     "
-    SELECT membership_num, email_address, legal_name, date_of_birth,
-           handle, postal_address, phone_number, password_hash, role,
+    SELECT membership_num, email_address, handle, password_hash, role,
            created_at::text, updated_at::text, deleted_at::text
     FROM members
     WHERE email_address = $1 AND deleted_at IS NULL
@@ -258,21 +248,16 @@ pub fn update_profile(
       let sql =
         "
         UPDATE members
-        SET email_address = $1, legal_name = $2, handle = $3, postal_address = $4,
-        phone_number = $5, password_hash = $6, updated_at = NOW()
-        WHERE membership_num = $7 AND deleted_at IS NULL
-        RETURNING membership_num, email_address, legal_name, date_of_birth,
-                  handle, postal_address, phone_number, password_hash, role,
+        SET email_address = $1, handle = $2, password_hash = $3, updated_at = NOW()
+        WHERE membership_num = $4 AND deleted_at IS NULL
+        RETURNING membership_num, email_address, handle, password_hash, role,
                   created_at::text, updated_at::text, deleted_at::text
       "
 
       use rows <- result.try(
         pog.query(sql)
         |> pog.parameter(pog.text(request.email_address))
-        |> pog.parameter(pog.text(request.legal_name))
         |> pog.parameter(pog.text(request.handle))
-        |> pog.parameter(pog.text(request.postal_address))
-        |> pog.parameter(pog.text(request.phone_number))
         |> pog.parameter(pog.text(final_password_hash))
         |> pog.parameter(pog.int(membership_num))
         |> pog.returning(decode_member_from_db())
@@ -308,22 +293,16 @@ pub fn admin_update(
   let sql =
     "
     UPDATE members
-    SET email_address = $1, legal_name = $2, date_of_birth = $3, handle = $4,
-        postal_address = $5, phone_number = $6, role = $7, updated_at = NOW()
-    WHERE membership_num = $8 AND deleted_at IS NULL
-    RETURNING membership_num, email_address, legal_name, date_of_birth,
-              handle, postal_address, phone_number, password_hash, role,
+    SET email_address = $1, handle = $2, role = $3, updated_at = NOW()
+    WHERE membership_num = $4 AND deleted_at IS NULL
+    RETURNING membership_num, email_address, handle, password_hash, role,
               created_at::text, updated_at::text, deleted_at::text
   "
 
   use rows <- result.try(
     pog.query(sql)
     |> pog.parameter(pog.text(request.email_address))
-    |> pog.parameter(pog.text(request.legal_name))
-    |> pog.parameter(pog.text(request.date_of_birth))
     |> pog.parameter(pog.text(request.handle))
-    |> pog.parameter(pog.text(request.postal_address))
-    |> pog.parameter(pog.text(request.phone_number))
     |> pog.parameter(pog.text(role.to_string(request.role)))
     |> pog.parameter(pog.int(membership_num))
     |> pog.returning(decode_member_from_db())
@@ -369,9 +348,7 @@ pub fn delete(
     True ->
       "
       UPDATE members
-      SET legal_name = '(deleted)', handle = '(deleted)',
-          postal_address = '(deleted)', phone_number = '(deleted)',
-          deleted_at = NOW()
+      SET handle = '(deleted)', deleted_at = NOW()
       WHERE membership_num = $1 AND deleted_at IS NULL
     "
     False ->
@@ -407,11 +384,7 @@ pub fn to_json(member: members.MemberRecord) -> json.Json {
       json.string(membership_id.to_string(member.membership_id)),
     ),
     #("email_address", json.string(member.email_address)),
-    #("legal_name", json.string(member.legal_name)),
-    #("date_of_birth", json.string(member.date_of_birth)),
     #("handle", json.string(member.handle)),
-    #("postal_address", json.string(member.postal_address)),
-    #("phone_number", json.string(member.phone_number)),
     #("role", json.string(role.to_string(member.role))),
     #("created_at", json.string(member.created_at)),
     #("updated_at", json.string(member.updated_at)),
@@ -426,11 +399,7 @@ fn decode_member_from_db() -> decode.Decoder(members.MemberRecord) {
   {
     use membership_num <- decode.field("membership_num", decode.int)
     use email_address <- decode.field("email_address", decode.string)
-    use legal_name <- decode.field("legal_name", decode.string)
-    use date_of_birth <- decode.field("date_of_birth", decode.string)
     use handle <- decode.field("handle", decode.string)
-    use postal_address <- decode.field("postal_address", decode.string)
-    use phone_number <- decode.field("phone_number", decode.string)
     use password_hash <- decode.field("password_hash", decode.string)
     use role_str <- decode.field("role", decode.string)
     use created_at <- decode.field("created_at", decode.string)
@@ -451,11 +420,7 @@ fn decode_member_from_db() -> decode.Decoder(members.MemberRecord) {
       membership_num: membership_num,
       membership_id: membership_id.from_number(membership_num),
       email_address: email_address,
-      legal_name: legal_name,
-      date_of_birth: date_of_birth,
       handle: handle,
-      postal_address: postal_address,
-      phone_number: phone_number,
       password_hash: password_hash,
       role: role,
       created_at: created_at,

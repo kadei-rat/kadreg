@@ -17,11 +17,7 @@ pub fn signup_success_test() {
   // Create signup form data
   let form_data = [
     #("email_address", test_email),
-    #("legal_name", "New Signup User"),
-    #("date_of_birth", "1990-05-15"),
     #("handle", "newsignup"),
-    #("postal_address", "456 Signup St"),
-    #("phone_number", "555-1234"),
     #("password", "strongpassword123"),
   ]
 
@@ -53,11 +49,7 @@ pub fn signup_validation_failure_test() {
   // Create signup form data with password that's too short
   let form_data = [
     #("email_address", "shortpass@example.com"),
-    #("legal_name", "Short Pass User"),
-    #("date_of_birth", "1990-05-15"),
     #("handle", "shortpass"),
-    #("postal_address", "456 Short St"),
-    #("phone_number", "555-5678"),
     #("password", "short"),
     // This should fail validation (< 12 chars)
   ]
@@ -81,15 +73,12 @@ pub fn signup_missing_field_test() {
   let assert Ok(db_coord) = setup_test_db()
   let conf = config.load()
 
-  // Create signup form data missing required field (legal_name)
+  // Create signup form data missing required field (email)
   let form_data = [
-    #("email_address", "missingfield@example.com"),
-    // Missing legal_name
-    #("date_of_birth", "1990-05-15"),
+    // Missing email address
+    #("email_address", ""),
     #("handle", "missingfield"),
-    #("postal_address", "456 Missing St"),
-    #("phone_number", "555-9999"),
-    #("password", "strongpassword123"),
+    #("password", "strongpassword123456"),
   ]
 
   // Submit signup form
@@ -100,7 +89,7 @@ pub fn signup_missing_field_test() {
   let assert 303 = response.status
   let location_header = get_location_header(response)
   let assert True = string.contains(location_header, "/signup?error=")
-  let assert True = string.contains(location_header, "Missing%20field")
+  let assert True = string.contains(location_header, "email")
 }
 
 pub fn signup_with_existing_member_email_test() {
@@ -118,11 +107,7 @@ pub fn signup_with_existing_member_email_test() {
   // Try to sign up with the same email
   let form_data = [
     #("email_address", test_email),
-    #("legal_name", "New Signup User"),
-    #("date_of_birth", "1990-05-15"),
     #("handle", "newsignup"),
-    #("postal_address", "456 Signup St"),
-    #("phone_number", "555-1234"),
     #("password", "strongpassword123"),
   ]
 

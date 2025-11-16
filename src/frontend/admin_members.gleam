@@ -40,7 +40,6 @@ fn members_table(members: List(MemberRecord)) -> Element(t) {
         html.thead([], [
           html.tr([], [
             html.th([attribute.class("sortable")], [html.text("ID")]),
-            html.th([attribute.class("sortable")], [html.text("Name")]),
             html.th([attribute.class("sortable")], [html.text("Handle")]),
             html.th([attribute.class("sortable")], [html.text("Email")]),
             html.th([attribute.class("sortable")], [html.text("Role")]),
@@ -58,7 +57,6 @@ fn member_row(member: MemberRecord) -> Element(t) {
 
   html.tr([], [
     html.td([], [html.text(member_id_str)]),
-    html.td([], [html.text(member.legal_name)]),
     html.td([], [html.text(member.handle)]),
     html.td([], [html.text(member.email_address)]),
     html.td([], [

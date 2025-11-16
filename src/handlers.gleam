@@ -489,20 +489,12 @@ fn decode_form_create_member_request(
   formdata: List(#(String, String)),
 ) -> Result(members.CreateMemberRequest, errors.AppError) {
   use email_address <- result.try(get_field(formdata, "email_address"))
-  use legal_name <- result.try(get_field(formdata, "legal_name"))
-  use date_of_birth <- result.try(get_field(formdata, "date_of_birth"))
   use handle <- result.try(get_field(formdata, "handle"))
-  use postal_address <- result.try(get_field(formdata, "postal_address"))
-  use phone_number <- result.try(get_field(formdata, "phone_number"))
   use password <- result.try(get_field(formdata, "password"))
 
   Ok(members.CreateMemberRequest(
     email_address: email_address,
-    legal_name: legal_name,
-    date_of_birth: date_of_birth,
     handle: handle,
-    postal_address: postal_address,
-    phone_number: phone_number,
     password: password,
     role: None,
   ))
@@ -512,10 +504,7 @@ fn decode_form_update_member_request(
   formdata: List(#(String, String)),
 ) -> Result(members.UpdateMemberRequest, errors.AppError) {
   use email_address <- result.try(get_field(formdata, "email_address"))
-  use legal_name <- result.try(get_field(formdata, "legal_name"))
   use handle <- result.try(get_field(formdata, "handle"))
-  use postal_address <- result.try(get_field(formdata, "postal_address"))
-  use phone_number <- result.try(get_field(formdata, "phone_number"))
   use current_password <- result.try(get_field(formdata, "current_password"))
 
   // New password is optional
@@ -527,10 +516,7 @@ fn decode_form_update_member_request(
 
   Ok(members.UpdateMemberRequest(
     email_address: email_address,
-    legal_name: legal_name,
     handle: handle,
-    postal_address: postal_address,
-    phone_number: phone_number,
     current_password: current_password,
     new_password: new_password,
   ))
@@ -540,22 +526,14 @@ fn decode_form_admin_update_member_request(
   formdata: List(#(String, String)),
 ) -> Result(members.AdminUpdateMemberRequest, errors.AppError) {
   use email_address <- result.try(get_field(formdata, "email_address"))
-  use legal_name <- result.try(get_field(formdata, "legal_name"))
-  use date_of_birth <- result.try(get_field(formdata, "date_of_birth"))
   use handle <- result.try(get_field(formdata, "handle"))
-  use postal_address <- result.try(get_field(formdata, "postal_address"))
-  use phone_number <- result.try(get_field(formdata, "phone_number"))
   use role_str <- result.try(get_field(formdata, "role"))
 
   use role <- result.try(role.from_string(role_str))
 
   Ok(members.AdminUpdateMemberRequest(
     email_address: email_address,
-    legal_name: legal_name,
-    date_of_birth: date_of_birth,
     handle: handle,
-    postal_address: postal_address,
-    phone_number: phone_number,
     role: role,
   ))
 }
