@@ -42,7 +42,7 @@ pub fn load() -> Config {
 
   let con_name =
     envoy.get("CON_NAME")
-    |> result.unwrap("Pawsome")
+    |> result.unwrap("<con_name>")
 
   let base_url =
     envoy.get("BASE_URL")
