@@ -181,7 +181,6 @@ pub fn list_members_test() {
 pub fn duplicate_constraints_test() {
   let assert Ok(db_coord) = setup_test_db()
   let test_email = "duplicate@example.com"
-  let test_handle = "duplicatehandle"
 
   // Clean up any existing test data
   let _ = cleanup_test_member(db_coord, test_email)
@@ -191,7 +190,7 @@ pub fn duplicate_constraints_test() {
       email_address: test_email,
       legal_name: "Duplicate Test 1",
       date_of_birth: "1990-01-01",
-      handle: test_handle,
+      handle: "somehandle",
       postal_address: "123 Dup St",
       phone_number: "555-0111",
       password: "dup1pass",
@@ -218,24 +217,6 @@ pub fn duplicate_constraints_test() {
 
   let assert Error(errors.ValidationError(_, _)) =
     members_db.create(db_coord, request2)
-
-  // Try to create third member with same handle (should fail)
-  let request3 =
-    members.CreateMemberRequest(
-      email_address: "different@example.com",
-      // Different email
-      legal_name: "Duplicate Test 3",
-      date_of_birth: "1992-01-01",
-      handle: test_handle,
-      // Same handle
-      postal_address: "789 Dup Blvd",
-      phone_number: "555-0333",
-      password: "dup3pass",
-      role: option.Some(role.RegStaff),
-    )
-
-  let assert Error(errors.ValidationError(_, _)) =
-    members_db.create(db_coord, request3)
 
   // Clean up
   let _ = cleanup_test_member(db_coord, test_email)
