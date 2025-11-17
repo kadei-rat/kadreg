@@ -15,6 +15,9 @@ pub fn encode_member_test() {
       email_address: "test@example.com",
       handle: "janedoe",
       password_hash: "hashed_password",
+      emergency_contact: option.Some(
+        "@foobar on telegram (relationship: owner)",
+      ),
       role: role.Member,
       created_at: "2021-12-31T20:00:00Z",
       updated_at: "2021-12-31T20:00:00Z",

@@ -1,4 +1,5 @@
 import frontend/shared_helpers
+import gleam/option
 import lustre/attribute
 import lustre/element.{type Element}
 import lustre/element/html
@@ -55,6 +56,10 @@ pub fn view(member: MemberRecord) -> Element(t) {
           detail_item("Handle", member.handle),
           detail_item("Email", member.email_address),
           detail_item("Role", role.to_string(member.role)),
+          detail_item(
+            "Emergency Contact",
+            member.emergency_contact |> option.unwrap("(not set)"),
+          ),
         ]),
 
         detail_section("Account Information", [

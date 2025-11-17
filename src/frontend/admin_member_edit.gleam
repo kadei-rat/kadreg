@@ -58,6 +58,13 @@ pub fn member_edit_page(
                 member.email_address,
                 True,
               ),
+              textarea_field(
+                "Emergency Contact",
+                "emergency_contact",
+                member.emergency_contact |> option.unwrap(""),
+                False,
+                "Whoever they'd like us to contact in an emergency (phone number or tg handle, and their relation)",
+              ),
               role_field("Role", member.role),
             ]),
 
@@ -136,6 +143,36 @@ fn form_field(
   html.div([attribute.class("form-group")], [
     html.label([attribute.for(name)], [html.text(label)]),
     html.input(input_attrs),
+  ])
+}
+
+fn textarea_field(
+  label: String,
+  name: String,
+  value: String,
+  required: Bool,
+  help_text: String,
+) -> Element(t) {
+  let textarea_attrs = case required {
+    True -> [
+      attribute.id(name),
+      attribute.name(name),
+      attribute.class("form-input"),
+      attribute.attribute("rows", "3"),
+      attribute.required(True),
+    ]
+    False -> [
+      attribute.id(name),
+      attribute.name(name),
+      attribute.class("form-input"),
+      attribute.attribute("rows", "3"),
+    ]
+  }
+
+  html.div([attribute.class("form-group")], [
+    html.label([attribute.for(name)], [html.text(label)]),
+    html.div([attribute.class("form-help")], [html.p([], [html.text(help_text)])]),
+    html.textarea(textarea_attrs, value),
   ])
 }
 

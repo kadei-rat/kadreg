@@ -146,6 +146,7 @@ pub fn update_form_data(
   [
     #("email_address", email),
     #("handle", handle),
+    #("emergency_contact", ""),
   ]
 }
 
@@ -158,6 +159,7 @@ pub fn admin_update_form_data(
   [
     #("email_address", email),
     #("handle", handle),
+    #("emergency_contact", ""),
     #("role", role),
   ]
 }

@@ -91,7 +91,7 @@ pub fn confirm_and_convert_to_member(
           email_address, handle, password_hash, role
         )
         VALUES ($1, $2, $3, $4)
-        RETURNING membership_num, email_address, handle, password_hash,
+        RETURNING membership_num, email_address, handle, password_hash, emergency_contact,
           role, created_at::text, updated_at::text, deleted_at::text
         "
 
@@ -202,6 +202,11 @@ fn decode_member_from_db() -> decode.Decoder(members.MemberRecord) {
     use email_address <- decode.field("email_address", decode.string)
     use handle <- decode.field("handle", decode.string)
     use password_hash <- decode.field("password_hash", decode.string)
+    use emergency_contact <- decode.optional_field(
+      "emergency_contact",
+      option.None,
+      decode.optional(decode.string),
+    )
     use role_str <- decode.field("role", decode.string)
     use created_at <- decode.field("created_at", decode.string)
     use updated_at <- decode.field("updated_at", decode.string)
@@ -222,6 +227,7 @@ fn decode_member_from_db() -> decode.Decoder(members.MemberRecord) {
       email_address: email_address,
       handle: handle,
       password_hash: password_hash,
+      emergency_contact: emergency_contact,
       role: role,
       created_at: created_at,
       updated_at: updated_at,

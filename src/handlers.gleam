@@ -507,6 +507,12 @@ fn decode_form_update_member_request(
   use handle <- result.try(get_field(formdata, "handle"))
   use current_password <- result.try(get_field(formdata, "current_password"))
 
+  let emergency_contact = case get_field(formdata, "emergency_contact") {
+    Ok("") -> None
+    Ok(contact) -> Some(contact)
+    Error(_) -> None
+  }
+
   // New password is optional
   let new_password = case get_field(formdata, "new_password") {
     Ok("") -> None
@@ -517,6 +523,7 @@ fn decode_form_update_member_request(
   Ok(members.UpdateMemberRequest(
     email_address: email_address,
     handle: handle,
+    emergency_contact: emergency_contact,
     current_password: current_password,
     new_password: new_password,
   ))
@@ -529,11 +536,18 @@ fn decode_form_admin_update_member_request(
   use handle <- result.try(get_field(formdata, "handle"))
   use role_str <- result.try(get_field(formdata, "role"))
 
+  let emergency_contact = case get_field(formdata, "emergency_contact") {
+    Ok("") -> None
+    Ok(contact) -> Some(contact)
+    Error(_) -> None
+  }
+
   use role <- result.try(role.from_string(role_str))
 
   Ok(members.AdminUpdateMemberRequest(
     email_address: email_address,
     handle: handle,
+    emergency_contact: emergency_contact,
     role: role,
   ))
 }

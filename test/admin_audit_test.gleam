@@ -1,5 +1,6 @@
 // Integration tests for admin audit logging
 import gleam/list
+import gleam/option
 import models/admin_audit
 import models/admin_audit_db
 import models/members
@@ -50,6 +51,7 @@ pub fn admin_update_audit_log_test() {
     members.AdminUpdateMemberRequest(
       email_address: update_email,
       handle: "updatedhandle",
+      emergency_contact: option.None,
       role: role.Staff,
     )
 
