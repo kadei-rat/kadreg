@@ -48,6 +48,33 @@ pub fn dashboard_edit_page(
               ),
             ]),
 
+            // Contact information section
+            form_section("Contact Information", [
+              html.div([attribute.class("form-group")], [
+                html.label([attribute.for("emergency_contact")], [
+                  html.text("Emergency Contact"),
+                ]),
+                html.textarea(
+                  [
+                    attribute.id("emergency_contact"),
+                    attribute.name("emergency_contact"),
+                    attribute.class("form-input"),
+                    attribute.placeholder(
+                      "@foobar on telegram (relationship: owner)",
+                    ),
+                  ],
+                  member.emergency_contact |> option.unwrap(""),
+                ),
+              ]),
+              html.div([attribute.class("form-help")], [
+                html.p([], [
+                  html.text(
+                    "Whoever you'd like us to contact in an emergency (phone number or tg handle, and their relation to you)",
+                  ),
+                ]),
+              ]),
+            ]),
+
             // Password section
             form_section("Password", [
               form_field(

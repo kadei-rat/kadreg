@@ -9,6 +9,7 @@ CREATE TABLE members (
     email_address TEXT NOT NULL,
     handle TEXT NOT NULL,
     password_hash TEXT NOT NULL,
+    emergency_contact TEXT,
     role member_role NOT NULL DEFAULT 'Member',
     created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,

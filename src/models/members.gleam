@@ -15,6 +15,7 @@ pub type MemberRecord {
     email_address: String,
     handle: String,
     password_hash: String,
+    emergency_contact: Option(String),
     role: Role,
     created_at: String,
     updated_at: String,
@@ -43,15 +44,20 @@ pub type UpdateMemberRequest {
   UpdateMemberRequest(
     email_address: String,
     handle: String,
+    emergency_contact: Option(String),
     current_password: String,
     new_password: Option(String),
   )
 }
 
-// Admin one differs from regular update by allowing role changes and DoB
-// changes, but not allowing password changes
+// Admin one differs from regular update by allowing role changes but not allowing password changes
 pub type AdminUpdateMemberRequest {
-  AdminUpdateMemberRequest(email_address: String, handle: String, role: Role)
+  AdminUpdateMemberRequest(
+    email_address: String,
+    handle: String,
+    emergency_contact: Option(String),
+    role: Role,
+  )
 }
 
 pub type MemberStats {
