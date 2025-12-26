@@ -91,6 +91,8 @@ pub fn create_member(
   |> result.try(pending_members_db.create(db, _))
   |> result.map(fn(pending_member) {
     email.send_email_confirmation_email(
+      conf.email,
+      conf.con_name,
       conf.base_url,
       pending_member.email_address,
       pending_member.email_confirm_token,

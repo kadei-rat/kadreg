@@ -7,6 +7,15 @@ pub type Environment {
   Prod
 }
 
+pub type EmailConfig {
+  EmailConfig(
+    zeptomail_api_key: String,
+    from_name: String,
+    from_address: String,
+  )
+  NoEmail
+}
+
 pub type Config {
   Config(
     // general config
@@ -23,6 +32,8 @@ pub type Config {
     // web server configuration
     server_port: Int,
     secret_key_base: String,
+    // email configuration
+    email: EmailConfig,
   )
 }
 
@@ -82,6 +93,21 @@ pub fn load() -> Config {
     _, _ -> Nil
   }
 
+  let email = case envoy.get("ZEPTOMAIL_API_KEY") {
+    Ok(api_key) -> {
+      let from_name =
+        envoy.get("EMAIL_FROM_NAME")
+        |> result.unwrap(con_name)
+      let from_address =
+        envoy.get("EMAIL_FROM_ADDRESS")
+        |> result.lazy_unwrap(fn() {
+          panic as "EMAIL_FROM_ADDRESS must be set when ZEPTOMAIL_API_KEY is configured"
+        })
+      EmailConfig(api_key, from_name, from_address)
+    }
+    Error(_) -> NoEmail
+  }
+
   // in integer seconds
   let max_db_pool_lifetime =
     envoy.get("MAX_DB_POOL_LIFETIME")
@@ -99,5 +125,6 @@ pub fn load() -> Config {
     max_db_pool_lifetime: max_db_pool_lifetime,
     server_port: server_port,
     secret_key_base: secret_key_base,
+    email: email,
   )
 }
