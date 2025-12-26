@@ -171,7 +171,9 @@ fn textarea_field(
 
   html.div([attribute.class("form-group")], [
     html.label([attribute.for(name)], [html.text(label)]),
-    html.div([attribute.class("form-help")], [html.p([], [html.text(help_text)])]),
+    html.div([attribute.class("form-help")], [
+      html.p([], [html.text(help_text)]),
+    ]),
     html.textarea(textarea_attrs, value),
   ])
 }

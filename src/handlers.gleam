@@ -8,11 +8,14 @@ import frontend/admin_dashboard
 import frontend/admin_member_edit
 import frontend/admin_member_view
 import frontend/admin_members
+import frontend/admin_registration_edit
+import frontend/admin_registrations
 import frontend/admin_stats
 import frontend/dashboard
 import frontend/edit_membership
 import frontend/layout.{NoTables, Tables}
 import frontend/login_page
+import frontend/register
 import frontend/signup_page
 import frontend/view_membership
 import gleam/http
@@ -23,10 +26,13 @@ import gleam/uri
 import logging
 import lustre/element
 import models/admin_audit_db
+import models/conventions
 import models/members
 import models/members_db
 import models/membership_id
 import models/pending_members_db
+import models/registrations
+import models/registrations_db
 import models/role
 import session
 import utils
@@ -302,10 +308,17 @@ pub fn admin_members_list(
 ) -> Response {
   use session_data <- session.require_session(req)
 
+  let convention = conventions.current_convention
+
   authorization.check_manage_members(session_data)
   |> result.try(fn(_) { members_db.list(db) })
-  |> result.map(fn(members_list) {
-    [admin_members.view(members_list)]
+  |> result.try(fn(members_list) {
+    registrations_db.get_status_map_for_convention(db, convention.id)
+    |> result.map(fn(reg_statuses) { #(members_list, reg_statuses) })
+  })
+  |> result.map(fn(data) {
+    let #(members_list, reg_statuses) = data
+    [admin_members.view(members_list, reg_statuses)]
     |> admin_dashboard.view(req.path)
     |> layout.view(conf.con_name, Tables)
     |> element.to_document_string_tree
@@ -431,6 +444,250 @@ pub fn admin_audit_log(
   })
   |> utils.spy_on_result(log_request("admin_audit_log", req, _))
   |> result.map_error(errors.error_to_response)
+  |> result.unwrap_both
+}
+
+pub fn admin_registrations_list(
+  req: Request,
+  db: DbCoordName,
+  conf: config.Config,
+) -> Response {
+  use session_data <- session.require_session(req)
+
+  let convention = conventions.current_convention
+
+  authorization.check_manage_members(session_data)
+  |> result.try(fn(_) {
+    registrations_db.list_for_convention_with_members(db, convention.id)
+  })
+  |> result.map(fn(regs) {
+    [admin_registrations.view(convention, regs)]
+    |> admin_dashboard.view(req.path)
+    |> layout.view(conf.con_name, Tables)
+    |> element.to_document_string_tree
+    |> wisp.html_response(200)
+  })
+  |> utils.spy_on_result(log_request("admin_registrations_list", req, _))
+  |> result.map_error(errors.error_to_response)
+  |> result.unwrap_both
+}
+
+pub fn admin_registration_edit_page(
+  req: Request,
+  db: DbCoordName,
+  conf: config.Config,
+  membership_id_str: String,
+) -> Response {
+  use session_data <- session.require_session(req)
+
+  let query_params = wisp.get_query(req)
+  let error_msg = val_from_querystring(query_params, "error")
+  let convention = conventions.current_convention
+
+  authorization.check_manage_members(session_data)
+  |> result.try(fn(_) { membership_id.parse(membership_id_str) })
+  |> result.try(membership_id.to_number)
+  |> result.try(fn(member_num) {
+    registrations_db.get_with_member(db, member_num, convention.id)
+  })
+  |> result.map(fn(reg_with_member) {
+    let reg =
+      registrations.Registration(
+        member_id: reg_with_member.member_id,
+        convention_id: reg_with_member.convention_id,
+        tier: reg_with_member.tier,
+        status: reg_with_member.status,
+        created_at: reg_with_member.created_at,
+        updated_at: reg_with_member.updated_at,
+      )
+    [
+      admin_registration_edit.view(
+        convention,
+        reg,
+        reg_with_member.handle,
+        error_msg,
+      ),
+    ]
+    |> admin_dashboard.view(req.path)
+    |> layout.view(conf.con_name, NoTables)
+    |> element.to_document_string_tree
+    |> wisp.html_response(200)
+  })
+  |> utils.spy_on_result(log_request("admin_registration_edit_page", req, _))
+  |> result.map_error(errors.error_to_response)
+  |> result.unwrap_both
+}
+
+pub fn admin_update_registration(
+  req: Request,
+  db: DbCoordName,
+  _conf: config.Config,
+  membership_id_str: String,
+) -> Response {
+  use session_data <- session.require_session(req)
+  use formdata <- wisp.require_form(req)
+
+  let convention = conventions.current_convention
+
+  authorization.check_manage_members(session_data)
+  |> result.try(fn(_) { membership_id.parse(membership_id_str) })
+  |> result.try(membership_id.to_number)
+  |> result.try(fn(member_num) {
+    use tier_str <- result.try(get_field(formdata.values, "tier"))
+    use status_str <- result.try(get_field(formdata.values, "status"))
+    use tier <- result.try(registrations.tier_from_string(tier_str))
+    use status <- result.try(registrations.status_from_string(status_str))
+
+    registrations_db.admin_update(db, member_num, convention.id, tier, status)
+  })
+  |> utils.spy_on_result(log_request("admin_update_registration", req, _))
+  |> result.map(fn(_) { wisp.redirect("/admin/registrations") })
+  |> result.map_error(fn(err) {
+    wisp.redirect(
+      "/admin/registrations/"
+      <> membership_id_str
+      <> "/edit?error="
+      <> uri.percent_encode(errors.to_public_string(err)),
+    )
+  })
+  |> result.unwrap_both
+}
+
+// Registration routes
+
+pub fn register_page(
+  req: Request,
+  db: DbCoordName,
+  conf: config.Config,
+) -> Response {
+  use session_data <- session.require_session(req)
+
+  let query_params = wisp.get_query(req)
+  let error_msg = val_from_querystring(query_params, "error")
+  let convention = conventions.current_convention
+
+  membership_id.to_number(session_data.membership_id)
+  |> result.map(fn(membership_num) {
+    let registration =
+      registrations_db.get(db, membership_num, convention.id)
+      |> option.from_result
+
+    [register.view(convention, registration, conf.registration_open, error_msg)]
+    |> dashboard.view(req.path, authorization.can_access_admin(session_data))
+    |> layout.view(conf.con_name, NoTables)
+    |> element.to_document_string_tree
+    |> wisp.html_response(200)
+  })
+  |> utils.spy_on_result(log_request("register_page", req, _))
+  |> result.map_error(errors.error_to_response)
+  |> result.unwrap_both
+}
+
+pub fn create_registration(
+  req: Request,
+  db: DbCoordName,
+  _conf: config.Config,
+) -> Response {
+  use session_data <- session.require_session(req)
+  use formdata <- wisp.require_form(req)
+
+  membership_id.to_number(session_data.membership_id)
+  |> result.try(fn(membership_num) {
+    use convention_id <- result.try(get_field(formdata.values, "convention_id"))
+    use tier_str <- result.try(get_field(formdata.values, "tier"))
+    use tier <- result.try(registrations.tier_from_string(tier_str))
+
+    registrations_db.create(db, membership_num, convention_id, tier)
+  })
+  |> utils.spy_on_result(log_request("create_registration", req, _))
+  |> result.map(fn(_) { wisp.redirect("/register") })
+  |> result.map_error(fn(err) {
+    wisp.redirect(
+      "/register?error=" <> uri.percent_encode(errors.to_public_string(err)),
+    )
+  })
+  |> result.unwrap_both
+}
+
+pub fn update_registration(
+  req: Request,
+  db: DbCoordName,
+  _conf: config.Config,
+  convention_id: String,
+) -> Response {
+  use session_data <- session.require_session(req)
+  use formdata <- wisp.require_form(req)
+
+  membership_id.to_number(session_data.membership_id)
+  |> result.try(fn(membership_num) {
+    // Check that registration exists and can be modified
+    use reg <- result.try(registrations_db.get(
+      db,
+      membership_num,
+      convention_id,
+    ))
+    case registrations.can_user_modify(reg.status) {
+      False ->
+        Error(errors.authorization_error(
+          "Cannot modify a registration in the "
+          <> registrations.status_to_display_string(reg.status)
+          <> " state",
+        ))
+      True -> Ok(membership_num)
+    }
+  })
+  |> result.try(fn(membership_num) {
+    use tier_str <- result.try(get_field(formdata.values, "tier"))
+    use tier <- result.try(registrations.tier_from_string(tier_str))
+
+    registrations_db.update_tier(db, membership_num, convention_id, tier)
+  })
+  |> utils.spy_on_result(log_request("update_registration", req, _))
+  |> result.map(fn(_) { wisp.redirect("/register") })
+  |> result.map_error(fn(err) {
+    wisp.redirect(
+      "/register?error=" <> uri.percent_encode(errors.to_public_string(err)),
+    )
+  })
+  |> result.unwrap_both
+}
+
+pub fn cancel_registration(
+  req: Request,
+  db: DbCoordName,
+  _conf: config.Config,
+  convention_id: String,
+) -> Response {
+  use session_data <- session.require_session(req)
+
+  membership_id.to_number(session_data.membership_id)
+  |> result.try(fn(membership_num) {
+    // Check that registration exists and can be modified
+    use reg <- result.try(registrations_db.get(
+      db,
+      membership_num,
+      convention_id,
+    ))
+    case registrations.can_user_modify(reg.status) {
+      False ->
+        Error(errors.authorization_error(
+          "Cannot cancel a registration in the "
+          <> registrations.status_to_display_string(reg.status)
+          <> " state",
+        ))
+      True -> Ok(membership_num)
+    }
+  })
+  |> result.try(fn(membership_num) {
+    registrations_db.cancel(db, membership_num, convention_id)
+  })
+  |> utils.spy_on_result(log_request("cancel_registration", req, _))
+  |> result.map(fn(_) { wisp.redirect("/register") })
+  |> result.map_error(fn(err) {
+    wisp.redirect(
+      "/register?error=" <> uri.percent_encode(errors.to_public_string(err)),
+    )
+  })
   |> result.unwrap_both
 }
 

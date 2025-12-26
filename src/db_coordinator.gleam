@@ -12,6 +12,7 @@ import logging
 import models/admin_audit.{type AuditLogEntry}
 import models/members.{type MemberRecord, type MemberStats}
 import models/pending_members.{type PendingMemberRecord}
+import models/registrations.{type Registration, type RegistrationWithMember}
 import pog
 
 // Public api
@@ -35,6 +36,14 @@ pub type Message {
   AuditQuery(
     query: pog.Query(AuditLogEntry),
     reply_to: Subject(Result(pog.Returned(AuditLogEntry), AppError)),
+  )
+  RegistrationQuery(
+    query: pog.Query(Registration),
+    reply_to: Subject(Result(pog.Returned(Registration), AppError)),
+  )
+  RegistrationWithMemberQuery(
+    query: pog.Query(RegistrationWithMember),
+    reply_to: Subject(Result(pog.Returned(RegistrationWithMember), AppError)),
   )
   NoResultQuery(
     query: pog.Query(Nil),
@@ -68,6 +77,20 @@ pub fn audit_query(
   db_coord_name: DbCoordName,
 ) -> Result(pog.Returned(AuditLogEntry), AppError) {
   call_db_coordinator(AuditQuery(query, _), db_coord_name)
+}
+
+pub fn registration_query(
+  query: pog.Query(Registration),
+  db_coord_name: DbCoordName,
+) -> Result(pog.Returned(Registration), AppError) {
+  call_db_coordinator(RegistrationQuery(query, _), db_coord_name)
+}
+
+pub fn registration_with_member_query(
+  query: pog.Query(RegistrationWithMember),
+  db_coord_name: DbCoordName,
+) -> Result(pog.Returned(RegistrationWithMember), AppError) {
+  call_db_coordinator(RegistrationWithMemberQuery(query, _), db_coord_name)
 }
 
 pub fn noresult_query(
@@ -123,6 +146,9 @@ fn handle_message(state: State, message: Message) -> actor.Next(State, Message) 
     PendingMemberQuery(query, reply_to) -> run_query(state, query, reply_to)
     StatsQuery(query, reply_to) -> run_query(state, query, reply_to)
     AuditQuery(query, reply_to) -> run_query(state, query, reply_to)
+    RegistrationQuery(query, reply_to) -> run_query(state, query, reply_to)
+    RegistrationWithMemberQuery(query, reply_to) ->
+      run_query(state, query, reply_to)
     NoResultQuery(query, reply_to) -> run_query(state, query, reply_to)
   }
 }

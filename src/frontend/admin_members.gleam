@@ -1,13 +1,18 @@
 import frontend/shared_helpers
+import gleam/dict.{type Dict}
 import gleam/list
 import lustre/attribute
 import lustre/element.{type Element}
 import lustre/element/html
 import models/members.{type MemberRecord}
 import models/membership_id
+import models/registrations.{type RegistrationStatus}
 import models/role
 
-pub fn view(members: List(MemberRecord)) -> Element(t) {
+pub fn view(
+  members: List(MemberRecord),
+  reg_statuses: Dict(Int, RegistrationStatus),
+) -> Element(t) {
   html.div([], [
     // Page header
     html.div([attribute.class("card")], [
@@ -24,12 +29,15 @@ pub fn view(members: List(MemberRecord)) -> Element(t) {
           attribute.id("member-search"),
         ]),
       ]),
-      members_table(members),
+      members_table(members, reg_statuses),
     ]),
   ])
 }
 
-fn members_table(members: List(MemberRecord)) -> Element(t) {
+fn members_table(
+  members: List(MemberRecord),
+  reg_statuses: Dict(Int, RegistrationStatus),
+) -> Element(t) {
   case members {
     [] ->
       html.div([attribute.class("empty-state")], [
@@ -43,17 +51,32 @@ fn members_table(members: List(MemberRecord)) -> Element(t) {
             html.th([attribute.class("sortable")], [html.text("Handle")]),
             html.th([attribute.class("sortable")], [html.text("Email")]),
             html.th([attribute.class("sortable")], [html.text("Role")]),
+            html.th([attribute.class("sortable")], [html.text("Reg Status")]),
             html.th([attribute.class("sortable")], [html.text("Joined")]),
             html.th([], [html.text("Actions")]),
           ]),
         ]),
-        html.tbody([], list.map(members, member_row)),
+        html.tbody([], list.map(members, fn(m) { member_row(m, reg_statuses) })),
       ])
   }
 }
 
-fn member_row(member: MemberRecord) -> Element(t) {
+fn member_row(
+  member: MemberRecord,
+  reg_statuses: Dict(Int, RegistrationStatus),
+) -> Element(t) {
   let member_id_str = membership_id.to_string(member.membership_id)
+
+  let reg_status_cell = case dict.get(reg_statuses, member.membership_num) {
+    Ok(status) -> {
+      let status_class =
+        "status-badge status-" <> registrations.status_to_string(status)
+      html.span([attribute.class(status_class)], [
+        html.text(registrations.status_to_display_string(status)),
+      ])
+    }
+    Error(_) -> html.text("-")
+  }
 
   html.tr([], [
     html.td([], [html.text(member_id_str)]),
@@ -65,6 +88,7 @@ fn member_row(member: MemberRecord) -> Element(t) {
         [html.text(role.to_string(member.role))],
       ),
     ]),
+    html.td([], [reg_status_cell]),
     html.td([attribute.class("date-cell")], [
       shared_helpers.format_date_element(member.created_at),
     ]),

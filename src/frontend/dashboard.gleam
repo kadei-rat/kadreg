@@ -44,6 +44,7 @@ fn build_user_nav_items(
       "/membership/edit",
       current_path == "/membership/edit",
     ),
+    NavItem("Register", "/register", current_path == "/register"),
   ]
 
   case can_access_admin {

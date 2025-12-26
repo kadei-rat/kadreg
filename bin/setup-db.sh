@@ -8,7 +8,7 @@ TEST_DB_NAME="${DB_NAME}_test"
 setup() {
     echo "setting up $1"
     psql -f database/setup.sql "$1"
-    for file in migrations/*.sql; do
+    for file in database/migrations/*.sql; do
       echo "  Running $(basename "$file")"
       psql -f "$file" "$1"
     done

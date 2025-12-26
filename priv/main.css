@@ -694,6 +694,208 @@ body {
   font-style: italic;
 }
 
+/* Registration tier options */
+.tier-options {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.tier-option {
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+  padding: 16px;
+  border: 2px solid #e9ecef;
+  border-radius: 12px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  background: white;
+}
+
+.tier-option:hover {
+  border-color: #e72060;
+  background: #fafafa;
+}
+
+.tier-option:has(.tier-radio:checked) {
+  border-color: #e72060;
+  background: rgba(231, 32, 96, 0.04);
+}
+
+.tier-radio {
+  margin-top: 4px;
+  width: 20px;
+  height: 20px;
+  accent-color: #e72060;
+  flex-shrink: 0;
+}
+
+.tier-content {
+  flex: 1;
+}
+
+.tier-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-bottom: 8px;
+}
+
+.tier-name {
+  font-size: 18px;
+  font-weight: 600;
+  color: #333;
+}
+
+.tier-price {
+  font-size: 18px;
+  font-weight: 700;
+  color: #e72060;
+}
+
+.tier-description {
+  font-size: 14px;
+  color: #666;
+  line-height: 1.5;
+  margin: 0;
+}
+
+.tier-option-compact {
+  padding: 12px 16px;
+  align-items: center;
+}
+
+.tier-option-compact .tier-name {
+  font-size: 16px;
+  margin-right: 12px;
+}
+
+.tier-option-compact .tier-price {
+  font-size: 16px;
+}
+
+/* Registration status badges */
+.status-badge {
+  display: inline-block;
+  padding: 4px 10px;
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.status-pending {
+  background: #fff3cd;
+  color: #856404;
+}
+
+.status-successful {
+  background: #d4edda;
+  color: #155724;
+}
+
+.status-paid {
+  background: #cce5ff;
+  color: #004085;
+}
+
+.status-cancelled {
+  background: #f8d7da;
+  color: #721c24;
+}
+
+/* Registration tier badges */
+.tier-badge {
+  display: inline-block;
+  padding: 4px 10px;
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.tier-standard {
+  background: #e3f2fd;
+  color: #1565c0;
+}
+
+.tier-sponsor {
+  background: #f3e5f5;
+  color: #7b1fa2;
+}
+
+.tier-subsidised {
+  background: #e8f5e9;
+  color: #2e7d32;
+}
+
+.tier-double_subsidised {
+  background: #fff8e1;
+  color: #f57f17;
+}
+
+/* Registration page specific */
+.registration-form {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.existing-registration {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.registration-status-section {
+  background: #f8f9fa;
+  padding: 20px;
+  border-radius: 12px;
+}
+
+.registration-details {
+  margin-top: 12px;
+}
+
+.registration-details p {
+  margin: 8px 0;
+}
+
+.registration-locked {
+  background: #f8f9fa;
+  padding: 16px;
+  border-radius: 8px;
+  color: #666;
+  font-style: italic;
+}
+
+.modify-registration {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.modify-registration h3 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
+  color: #333;
+}
+
+.cancel-form {
+  margin-top: 8px;
+}
+
+.coming-soon {
+  text-align: center;
+  padding: 40px 20px;
+}
+
+.coming-soon-text {
+  font-size: 16px;
+  color: #666;
+}
 
 /* Responsive design */
 @media (max-width: 768px) {
@@ -750,6 +952,24 @@ body {
     display: block;
     overflow-x: auto;
     white-space: nowrap;
+  }
+
+  .tier-option {
+    padding: 12px;
+    gap: 12px;
+  }
+
+  .tier-header {
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .tier-name {
+    font-size: 16px;
+  }
+
+  .tier-price {
+    font-size: 16px;
   }
 }
 

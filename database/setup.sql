@@ -98,3 +98,28 @@ CREATE TRIGGER prevent_duplicate_email_in_pending_members
   BEFORE INSERT ON pending_members
   FOR EACH ROW
   EXECUTE FUNCTION check_pending_member_email();
+
+------------------------------
+-- Registrations
+------------------------------
+
+CREATE TYPE registration_tier AS ENUM ('standard', 'sponsor', 'subsidised', 'double_subsidised');
+CREATE TYPE registration_status AS ENUM ('pending', 'successful', 'paid', 'cancelled');
+
+CREATE TABLE registrations (
+    member_id INTEGER NOT NULL REFERENCES members(membership_num),
+    convention_id TEXT NOT NULL,
+    tier registration_tier NOT NULL,
+    status registration_status NOT NULL DEFAULT 'pending',
+    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (member_id, convention_id)
+);
+
+CREATE INDEX idx_registrations_convention ON registrations (convention_id);
+CREATE INDEX idx_registrations_status ON registrations (convention_id, status);
+
+CREATE TRIGGER update_registrations_updated_at
+    BEFORE UPDATE ON registrations
+    FOR EACH ROW
+    EXECUTE FUNCTION update_updated_at_column();

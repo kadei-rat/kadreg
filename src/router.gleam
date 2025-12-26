@@ -19,11 +19,16 @@ pub fn handle_request(
     [], Get -> handlers.root_page(req, db, conf)
     ["signup"], Get -> handlers.signup_page(req, db, conf)
     ["membership", "edit"], Get -> handlers.edit_membership(req, db, conf)
+    ["register"], Get -> handlers.register_page(req, db, conf)
 
     // admin
     ["admin"], Get -> handlers.admin_stats(req, db, conf)
     ["admin", "audit"], Get -> handlers.admin_audit_log(req, db, conf)
     ["admin", "members"], Get -> handlers.admin_members_list(req, db, conf)
+    ["admin", "registrations"], Get ->
+      handlers.admin_registrations_list(req, db, conf)
+    ["admin", "registrations", membership_id, "edit"], Get ->
+      handlers.admin_registration_edit_page(req, db, conf, membership_id)
     ["admin", "members", membership_id], Get ->
       handlers.admin_member_view(req, db, conf, membership_id)
     ["admin", "members", membership_id, "edit"], Get ->
@@ -41,6 +46,15 @@ pub fn handle_request(
       handlers.delete_member(req, db, membership_id)
     ["admin", "members", membership_id], Post ->
       handlers.admin_update_member(req, db, conf, membership_id)
+    ["admin", "registrations", membership_id], Post ->
+      handlers.admin_update_registration(req, db, conf, membership_id)
+
+    // registration api
+    ["registrations"], Post -> handlers.create_registration(req, db, conf)
+    ["registrations", convention_id], Post ->
+      handlers.update_registration(req, db, conf, convention_id)
+    ["registrations", convention_id, "cancel"], Post ->
+      handlers.cancel_registration(req, db, conf, convention_id)
 
     ["health"], Get -> {
       wisp.response(200)
