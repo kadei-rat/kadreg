@@ -3,60 +3,44 @@ import lustre/attribute
 import lustre/element.{type Element}
 import lustre/element/html
 
-pub fn view(error: Option(String), success: Option(String)) -> Element(t) {
+pub fn view(
+  bot_username: String,
+  error: Option(String),
+  success: Option(String),
+) -> Element(t) {
   html.div([attribute.class("login-container")], [
     html.h1([attribute.class("login-title")], [html.text("Login")]),
     case error {
       Some(err_msg) ->
         html.div([attribute.class("error-banner")], [html.text(err_msg)])
-      None -> html.div([], [])
+      None -> html.text("")
     },
     case success {
       Some(success_msg) ->
         html.div([attribute.class("success-banner")], [html.text(success_msg)])
-      None -> html.div([], [])
+      None -> html.text("")
     },
-    html.form(
-      [
-        attribute.method("post"),
-        attribute.action("/auth/login"),
-        attribute.class("login-form"),
-      ],
-      [
-        html.div([attribute.class("form-group")], [
-          html.label([attribute.for("email")], [html.text("Email:")]),
-          html.input([
-            attribute.type_("email"),
-            attribute.id("email"),
-            attribute.name("email_address"),
-            attribute.required(True),
-            attribute.class("form-input"),
-          ]),
-          html.div([attribute.class("email-invalid")], [
-            html.text("Email address invalid"),
-          ]),
-        ]),
-        html.div([attribute.class("form-group")], [
-          html.label([attribute.for("password")], [html.text("Password:")]),
-          html.input([
-            attribute.type_("password"),
-            attribute.id("password"),
-            attribute.name("password"),
-            attribute.required(True),
-            attribute.class("form-input"),
-          ]),
-        ]),
-        html.div([attribute.class("form-actions")], [
-          html.input([
-            attribute.type_("submit"),
-            attribute.value("Login"),
-            attribute.class("login-button"),
-          ]),
-          html.a([attribute.href("/signup"), attribute.class("signup-link")], [
-            html.text("Sign Up"),
-          ]),
-        ]),
-      ],
-    ),
+    html.div([attribute.class("telegram-login-wrapper")], [
+      html.p([attribute.class("login-instructions")], [
+        html.text(
+          "Click the button below to log in with your Telegram account:",
+        ),
+      ]),
+      telegram_login_widget(bot_username),
+    ]),
   ])
+}
+
+fn telegram_login_widget(bot_username: String) -> Element(t) {
+  html.script(
+    [
+      attribute.attribute("async", ""),
+      attribute.src("https://telegram.org/js/telegram-widget.js?22"),
+      attribute.attribute("data-telegram-login", bot_username),
+      attribute.attribute("data-size", "large"),
+      attribute.attribute("data-auth-url", "/auth/telegram_callback"),
+      attribute.attribute("data-request-access", "write"),
+    ],
+    "",
+  )
 }

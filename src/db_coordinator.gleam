@@ -11,7 +11,6 @@ import gleam/time/timestamp.{type Timestamp}
 import logging
 import models/admin_audit.{type AuditLogEntry}
 import models/members.{type MemberRecord, type MemberStats}
-import models/pending_members.{type PendingMemberRecord}
 import models/registrations.{type Registration, type RegistrationWithMember}
 import pog
 
@@ -24,10 +23,6 @@ pub type Message {
   MemberQuery(
     query: pog.Query(MemberRecord),
     reply_to: Subject(Result(pog.Returned(MemberRecord), AppError)),
-  )
-  PendingMemberQuery(
-    query: pog.Query(PendingMemberRecord),
-    reply_to: Subject(Result(pog.Returned(PendingMemberRecord), AppError)),
   )
   StatsQuery(
     query: pog.Query(MemberStats),
@@ -56,13 +51,6 @@ pub fn member_query(
   db_coord_name: DbCoordName,
 ) -> Result(pog.Returned(MemberRecord), AppError) {
   call_db_coordinator(MemberQuery(query, _), db_coord_name)
-}
-
-pub fn pending_member_query(
-  query: pog.Query(PendingMemberRecord),
-  db_coord_name: DbCoordName,
-) -> Result(pog.Returned(PendingMemberRecord), AppError) {
-  call_db_coordinator(PendingMemberQuery(query, _), db_coord_name)
 }
 
 pub fn stats_query(
@@ -108,8 +96,6 @@ pub fn start(
     conn: None,
     conf: conf,
     last_query_time: None,
-    // use the same name for each instance of the connection pool, guaranteeing
-    // we only run one at once
     pool_name: process.new_name(prefix: "db_pool"),
   ))
   |> actor.named(name)
@@ -129,7 +115,6 @@ type State {
     conf: Config,
     last_query_time: Option(Timestamp),
     pool_name: process.Name(pog.Message),
-    // query_cache: Map(
   )
 }
 
@@ -143,7 +128,6 @@ fn call_db_coordinator(
 fn handle_message(state: State, message: Message) -> actor.Next(State, Message) {
   case message {
     MemberQuery(query, reply_to) -> run_query(state, query, reply_to)
-    PendingMemberQuery(query, reply_to) -> run_query(state, query, reply_to)
     StatsQuery(query, reply_to) -> run_query(state, query, reply_to)
     AuditQuery(query, reply_to) -> run_query(state, query, reply_to)
     RegistrationQuery(query, reply_to) -> run_query(state, query, reply_to)
@@ -199,6 +183,8 @@ fn execute_query_on_conn(
 ) -> actor.Next(State, Message) {
   let assert State(Some(DbPool(conn, pid, created_at)), _, _, _) = state
   let now = timestamp.system_time()
+  // For the initial query after a connection, don't handle QueryTimeout
+  // separately; we never recycle a young pool
   case pog.execute(query, conn) {
     Error(pog.QueryTimeout) ->
       handle_query_timeout(state, pid, created_at, now, reply_to, query)
@@ -230,8 +216,6 @@ fn create_conn_and_execute_query(
           last_query_time: Some(now),
         )
       case pog.execute(query, data) {
-        // For the initial query after a connection, don't handle QueryTimeout
-        // separately; we never recycle a young pool
         Ok(result) -> {
           process.send(reply_to, Ok(result))
           actor.continue(new_state)

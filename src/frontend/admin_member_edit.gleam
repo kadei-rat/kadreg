@@ -1,63 +1,72 @@
+import gleam/int
 import gleam/option.{type Option, None, Some}
 import lustre/attribute
 import lustre/element.{type Element}
 import lustre/element/html
 import models/members.{type MemberRecord}
-import models/membership_id
 import models/role.{type Role}
 
 pub fn member_edit_page(
   member: MemberRecord,
   error: Option(String),
 ) -> Element(t) {
-  let member_id_str = membership_id.to_string(member.membership_id)
+  let telegram_id_str = int.to_string(member.telegram_id)
 
   html.div([], [
-    // Page header with back button
     html.div([attribute.class("card")], [
       html.div([attribute.class("card-header")], [
         html.div([attribute.class("page-title-with-back")], [
           html.a(
             [
-              attribute.href("/admin/members/" <> member_id_str),
+              attribute.href("/admin/members/" <> telegram_id_str),
               attribute.class("back-button"),
             ],
             [html.text("← Back to Member")],
           ),
           html.h1([attribute.class("card-title")], [
-            html.text("Edit: " <> member.handle),
+            html.text("Edit: " <> member.first_name),
           ]),
         ]),
       ]),
-
-      // Error banner
       case error {
         Some(err_msg) ->
           html.div([attribute.class("error-banner")], [html.text(err_msg)])
-        None -> html.div([], [])
+        None -> html.text("")
       },
     ]),
-
-    // Edit form
     html.div([attribute.class("card")], [
       html.form(
         [
           attribute.method("post"),
-          attribute.action("/admin/members/" <> member_id_str),
+          attribute.action("/admin/members/" <> telegram_id_str),
           attribute.class("member-edit-form"),
         ],
         [
           html.div([attribute.class("form-sections")], [
-            // Basic information section
-            form_section("Basic Information", [
-              form_field("Handle", "handle", "text", member.handle, True),
+            form_section("Telegram Information", [
+              form_field("Name", "first_name", "text", member.first_name, True),
               form_field(
-                "Email Address",
-                "email_address",
-                "email",
-                member.email_address,
-                True,
+                "Username",
+                "username",
+                "text",
+                member.username |> option.unwrap(""),
+                False,
               ),
+              html.div([attribute.class("readonly-info")], [
+                html.p([], [
+                  html.strong([], [html.text("Telegram ID: ")]),
+                  html.text(telegram_id_str),
+                ]),
+              ]),
+              html.div([attribute.class("form-help")], [
+                html.p([], [
+                  html.text(
+                    "Note: Name and username are normally synced from Telegram on login.",
+                  ),
+                ]),
+              ]),
+            ]),
+            form_section("Membership Information", [
               textarea_field(
                 "Emergency Contact",
                 "emergency_contact",
@@ -67,14 +76,8 @@ pub fn member_edit_page(
               ),
               role_field("Role", member.role),
             ]),
-
-            // Account status section
             form_section("Account Information", [
               html.div([attribute.class("readonly-info")], [
-                html.p([], [
-                  html.strong([], [html.text("Membership ID: ")]),
-                  html.text(member_id_str),
-                ]),
                 html.p([], [
                   html.strong([], [html.text("Member Since: ")]),
                   html.text(member.created_at),
@@ -86,12 +89,10 @@ pub fn member_edit_page(
               ]),
             ]),
           ]),
-
-          // Form actions
           html.div([attribute.class("form-actions-admin")], [
             html.a(
               [
-                attribute.href("/admin/members/" <> member_id_str),
+                attribute.href("/admin/members/" <> telegram_id_str),
                 attribute.class("button button-secondary"),
               ],
               [html.text("Cancel")],

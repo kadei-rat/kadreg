@@ -1,116 +1,81 @@
-import argus
 import db_coordinator.{type DbCoordName}
 import errors.{type AppError}
 import gleam/dynamic/decode
 import gleam/json
-import gleam/option.{None, Some}
+import gleam/option.{type Option, None, Some}
 import gleam/result
-import gleam/string
 import models/admin_audit
 import models/admin_audit_db
 import models/members.{type MemberStats, MemberStats}
-import models/membership_id.{type MembershipId}
 import models/role
 import pog
 
-// Now only used by tests that need to create a member; normal member sign-up
-// goes though pending_members
-pub fn create(
+pub type TelegramAuthData {
+  TelegramAuthData(
+    telegram_id: Int,
+    first_name: String,
+    username: Option(String),
+  )
+}
+
+/// Get or create a member from Telegram auth data.
+/// If the member exists, update their first_name and username (in case they changed).
+/// If not, create a new member.
+pub fn upsert_from_telegram(
   db: DbCoordName,
-  request: members.CreateMemberRequest,
+  auth_data: TelegramAuthData,
 ) -> Result(members.MemberRecord, AppError) {
-  // Default role to Member if not specified
-  let role = case request.role {
-    option.Some(role) -> role
-    option.None -> role.Member
-  }
-
-  use password_hash <- result.try(hash_password(request.password))
-
   let sql =
     "
-    INSERT INTO members (
-      email_address, handle, password_hash, role
-    )
-    VALUES ($1, $2, $3, $4)
-    RETURNING membership_num, email_address, handle, password_hash, emergency_contact,
+    INSERT INTO members (telegram_id, first_name, username)
+    VALUES ($1, $2, $3)
+    ON CONFLICT (telegram_id) DO UPDATE
+    SET first_name = EXCLUDED.first_name,
+        username = EXCLUDED.username,
+        updated_at = NOW()
+    WHERE members.deleted_at IS NULL
+    RETURNING telegram_id, first_name, username, emergency_contact,
               role, created_at::text, updated_at::text, deleted_at::text
   "
 
   use rows <- result.try(
     pog.query(sql)
-    |> pog.parameter(pog.text(request.email_address))
-    |> pog.parameter(pog.text(request.handle))
-    |> pog.parameter(pog.text(password_hash))
-    |> pog.parameter(pog.text(role.to_string(role)))
+    |> pog.parameter(pog.int(auth_data.telegram_id))
+    |> pog.parameter(pog.text(auth_data.first_name))
+    |> pog.parameter(case auth_data.username {
+      Some(u) -> pog.text(u)
+      None -> pog.null()
+    })
     |> pog.returning(decode_member_from_db())
     |> db_coordinator.member_query(db),
   )
 
   case rows.rows {
     [member] -> Ok(member)
-    [] ->
-      Error(errors.internal_error(
-        errors.public_5xx_msg,
-        "Insert failed - no rows returned",
-      ))
+    [] -> Error(errors.authentication_error("Account has been deleted"))
     _ ->
       Error(errors.internal_error(
         errors.public_5xx_msg,
-        "Insert returned multiple rows (unexpected)",
+        "Upsert returned multiple rows (unexpected)",
       ))
   }
 }
 
 pub fn get(
   db: DbCoordName,
-  membership_id: MembershipId,
+  telegram_id: Int,
 ) -> Result(members.MemberRecord, AppError) {
-  // Convert membership ID to number for database query
-  use membership_num <- result.try(membership_id.to_number(membership_id))
-
   let sql =
     "
-    SELECT membership_num, email_address, handle, password_hash, emergency_contact,
+    SELECT telegram_id, first_name, username, emergency_contact,
            role, created_at::text, updated_at::text, deleted_at::text
     FROM members
-    WHERE membership_num = $1 AND deleted_at IS NULL
+    WHERE telegram_id = $1 AND deleted_at IS NULL
   "
 
   use rows <- result.try(
     pog.query(sql)
-    |> pog.parameter(pog.int(membership_num))
-    |> pog.returning(decode_member_from_db())
-    |> db_coordinator.member_query(db),
-  )
-
-  case rows.rows {
-    [member] -> Ok(member)
-    [] -> Error(errors.not_found_error("Member not found"))
-    _ ->
-      Error(errors.internal_error(
-        errors.public_5xx_msg,
-        "Multiple members found (unexpected)",
-      ))
-  }
-}
-
-// used by tests
-pub fn get_by_email(
-  db: db_coordinator.DbCoordName,
-  email: String,
-) -> Result(members.MemberRecord, errors.AppError) {
-  let sql =
-    "
-    SELECT membership_num, email_address, handle, password_hash, emergency_contact,
-           role, created_at::text, updated_at::text, deleted_at::text
-    FROM members
-    WHERE email_address = $1 AND deleted_at IS NULL
-  "
-
-  use rows <- result.try(
-    pog.query(sql)
-    |> pog.parameter(pog.text(email))
+    |> pog.parameter(pog.int(telegram_id))
     |> pog.returning(decode_member_from_db())
     |> db_coordinator.member_query(db),
   )
@@ -129,11 +94,11 @@ pub fn get_by_email(
 pub fn list(db: DbCoordName) -> Result(List(members.MemberRecord), AppError) {
   let sql =
     "
-    SELECT membership_num, email_address, handle, password_hash, emergency_contact,
+    SELECT telegram_id, first_name, username, emergency_contact,
            role, created_at::text, updated_at::text, deleted_at::text
     FROM members
     WHERE deleted_at IS NULL
-    ORDER BY membership_num ASC
+    ORDER BY created_at ASC
   "
 
   use rows <- result.try(
@@ -185,151 +150,87 @@ pub fn get_stats(db: DbCoordName) -> Result(MemberStats, AppError) {
   })
 }
 
-pub fn authenticate(
-  db: DbCoordName,
-  email_address: String,
-  password: String,
-) -> Result(members.MemberRecord, AppError) {
-  let sql =
-    "
-    SELECT membership_num, email_address, handle, password_hash, emergency_contact,
-           role, created_at::text, updated_at::text, deleted_at::text
-    FROM members
-    WHERE email_address = $1 AND deleted_at IS NULL
-  "
-
-  use rows <- result.try(
-    pog.query(sql)
-    |> pog.parameter(pog.text(email_address))
-    |> pog.returning(decode_member_from_db())
-    |> db_coordinator.member_query(db),
-  )
-
-  case rows.rows {
-    [member] -> {
-      case verify_password(member.password_hash, password) {
-        True -> Ok(member)
-        False -> Error(errors.authentication_error("Invalid password"))
-      }
-    }
-    [] -> Error(errors.authentication_error("Member not found"))
-    _ ->
-      Error(errors.internal_error(
-        errors.public_5xx_msg,
-        "Multiple members found (unexpected)",
-      ))
-  }
-}
-
 pub fn update_profile(
   db: DbCoordName,
-  membership_id: MembershipId,
+  telegram_id: Int,
   request: members.UpdateMemberRequest,
 ) -> Result(members.MemberRecord, AppError) {
-  // Convert membership ID to number for database query
-  use membership_num <- result.try(membership_id.to_number(membership_id))
-
-  // First verify current password
-  use current_member <- result.try(get(db, membership_id))
-  case verify_password(current_member.password_hash, request.current_password) {
-    False -> Error(errors.authentication_error("Current password is incorrect"))
-    True -> {
-      // Handle password update if provided
-      let password_hash = case request.new_password {
-        Some(new_pass) -> {
-          use new_hash <- result.try(hash_password(new_pass))
-          Ok(new_hash)
-        }
-        None -> Ok(current_member.password_hash)
-      }
-
-      use final_password_hash <- result.try(password_hash)
-
-      let sql =
-        "
-        UPDATE members
-        SET email_address = $1, handle = $2, emergency_contact = $3, password_hash = $4, updated_at = NOW()
-        WHERE membership_num = $5 AND deleted_at IS NULL
-        RETURNING membership_num, email_address, handle, password_hash, emergency_contact,
-                  role, created_at::text, updated_at::text, deleted_at::text
-      "
-
-      use rows <- result.try(
-        pog.query(sql)
-        |> pog.parameter(pog.text(request.email_address))
-        |> pog.parameter(pog.text(request.handle))
-        |> pog.parameter(case request.emergency_contact {
-          option.Some(contact) -> pog.text(contact)
-          option.None -> pog.null()
-        })
-        |> pog.parameter(pog.text(final_password_hash))
-        |> pog.parameter(pog.int(membership_num))
-        |> pog.returning(decode_member_from_db())
-        |> db_coordinator.member_query(db),
-      )
-
-      case rows.rows {
-        [member] -> Ok(member)
-        [] ->
-          Error(errors.not_found_error("Member not found or already deleted"))
-        _ ->
-          Error(errors.internal_error(
-            errors.public_5xx_msg,
-            "Update returned multiple rows (unexpected)",
-          ))
-      }
-    }
-  }
-}
-
-pub fn admin_update(
-  db: DbCoordName,
-  performed_by: MembershipId,
-  membership_id: MembershipId,
-  request: members.AdminUpdateMemberRequest,
-) -> Result(members.MemberRecord, AppError) {
-  // Convert membership ID to number for database query
-  use membership_num <- result.try(membership_id.to_number(membership_id))
-
-  // Get old member record before updating for audit trail
-  use old_member <- result.try(get(db, membership_id))
-
   let sql =
     "
     UPDATE members
-    SET email_address = $1, handle = $2, emergency_contact = $3, role = $4, updated_at = NOW()
-    WHERE membership_num = $5 AND deleted_at IS NULL
-    RETURNING membership_num, email_address, handle, password_hash, emergency_contact,
+    SET emergency_contact = $1, updated_at = NOW()
+    WHERE telegram_id = $2 AND deleted_at IS NULL
+    RETURNING telegram_id, first_name, username, emergency_contact,
               role, created_at::text, updated_at::text, deleted_at::text
   "
 
   use rows <- result.try(
     pog.query(sql)
-    |> pog.parameter(pog.text(request.email_address))
-    |> pog.parameter(pog.text(request.handle))
     |> pog.parameter(case request.emergency_contact {
-      option.Some(contact) -> pog.text(contact)
-      option.None -> pog.null()
+      Some(contact) -> pog.text(contact)
+      None -> pog.null()
+    })
+    |> pog.parameter(pog.int(telegram_id))
+    |> pog.returning(decode_member_from_db())
+    |> db_coordinator.member_query(db),
+  )
+
+  case rows.rows {
+    [member] -> Ok(member)
+    [] -> Error(errors.not_found_error("Member not found or already deleted"))
+    _ ->
+      Error(errors.internal_error(
+        errors.public_5xx_msg,
+        "Update returned multiple rows (unexpected)",
+      ))
+  }
+}
+
+pub fn admin_update(
+  db: DbCoordName,
+  performed_by: Int,
+  target_telegram_id: Int,
+  request: members.AdminUpdateMemberRequest,
+) -> Result(members.MemberRecord, AppError) {
+  use old_member <- result.try(get(db, target_telegram_id))
+
+  let sql =
+    "
+    UPDATE members
+    SET first_name = $1, username = $2, emergency_contact = $3, role = $4, updated_at = NOW()
+    WHERE telegram_id = $5 AND deleted_at IS NULL
+    RETURNING telegram_id, first_name, username, emergency_contact,
+              role, created_at::text, updated_at::text, deleted_at::text
+  "
+
+  use rows <- result.try(
+    pog.query(sql)
+    |> pog.parameter(pog.text(request.first_name))
+    |> pog.parameter(case request.username {
+      Some(u) -> pog.text(u)
+      None -> pog.null()
+    })
+    |> pog.parameter(case request.emergency_contact {
+      Some(contact) -> pog.text(contact)
+      None -> pog.null()
     })
     |> pog.parameter(pog.text(role.to_string(request.role)))
-    |> pog.parameter(pog.int(membership_num))
+    |> pog.parameter(pog.int(target_telegram_id))
     |> pog.returning(decode_member_from_db())
     |> db_coordinator.member_query(db),
   )
 
   case rows.rows {
     [member] -> {
-      // Log the admin action
       let old_values = members.member_to_json(old_member)
       let new_values = members.member_to_json(member)
 
-      // Log to audit table (don't fail the update if audit logging fails)
       let _ =
         admin_audit_db.log_admin_action(
           db,
           performed_by,
           admin_audit.UpdateMember,
-          membership_id,
+          target_telegram_id,
           old_values,
           new_values,
         )
@@ -347,29 +248,27 @@ pub fn admin_update(
 
 pub fn delete(
   db: DbCoordName,
-  membership_id: MembershipId,
+  telegram_id: Int,
   purge_pii: Bool,
 ) -> Result(Nil, AppError) {
-  use membership_num <- result.try(membership_id.to_number(membership_id))
-
   let sql = case purge_pii {
     True ->
       "
       UPDATE members
-      SET handle = '(deleted)', deleted_at = NOW()
-      WHERE membership_num = $1 AND deleted_at IS NULL
+      SET first_name = '(deleted)', username = NULL, deleted_at = NOW()
+      WHERE telegram_id = $1 AND deleted_at IS NULL
     "
     False ->
       "
       UPDATE members
       SET deleted_at = NOW()
-      WHERE membership_num = $1 AND deleted_at IS NULL
+      WHERE telegram_id = $1 AND deleted_at IS NULL
     "
   }
 
   use rows <- result.try(
     pog.query(sql)
-    |> pog.parameter(pog.int(membership_num))
+    |> pog.parameter(pog.int(telegram_id))
     |> db_coordinator.noresult_query(db),
   )
 
@@ -386,78 +285,57 @@ pub fn delete(
 
 pub fn to_json(member: members.MemberRecord) -> json.Json {
   json.object([
-    #("membership_num", json.int(member.membership_num)),
-    #(
-      "membership_id",
-      json.string(membership_id.to_string(member.membership_id)),
-    ),
-    #("email_address", json.string(member.email_address)),
-    #("handle", json.string(member.handle)),
+    #("telegram_id", json.int(member.telegram_id)),
+    #("first_name", json.string(member.first_name)),
+    #("username", case member.username {
+      Some(u) -> json.string(u)
+      None -> json.null()
+    }),
     #("role", json.string(role.to_string(member.role))),
     #("created_at", json.string(member.created_at)),
     #("updated_at", json.string(member.updated_at)),
     #("deleted_at", case member.deleted_at {
-      option.Some(time_str) -> json.string(time_str)
-      option.None -> json.null()
+      Some(time_str) -> json.string(time_str)
+      None -> json.null()
     }),
   ])
 }
 
 fn decode_member_from_db() -> decode.Decoder(members.MemberRecord) {
-  {
-    use membership_num <- decode.field("membership_num", decode.int)
-    use email_address <- decode.field("email_address", decode.string)
-    use handle <- decode.field("handle", decode.string)
-    use password_hash <- decode.field("password_hash", decode.string)
-    use emergency_contact <- decode.optional_field(
-      "emergency_contact",
-      option.None,
-      decode.optional(decode.string),
-    )
-    use role_str <- decode.field("role", decode.string)
-    use created_at <- decode.field("created_at", decode.string)
-    use updated_at <- decode.field("updated_at", decode.string)
-    use deleted_at <- decode.optional_field(
-      "deleted_at",
-      option.None,
-      decode.optional(decode.string),
-    )
+  use telegram_id <- decode.field("telegram_id", decode.int)
+  use first_name <- decode.field("first_name", decode.string)
+  use username <- decode.optional_field(
+    "username",
+    None,
+    decode.optional(decode.string),
+  )
+  use emergency_contact <- decode.optional_field(
+    "emergency_contact",
+    None,
+    decode.optional(decode.string),
+  )
+  use role_str <- decode.field("role", decode.string)
+  use created_at <- decode.field("created_at", decode.string)
+  use updated_at <- decode.field("updated_at", decode.string)
+  use deleted_at <- decode.optional_field(
+    "deleted_at",
+    None,
+    decode.optional(decode.string),
+  )
 
-    // Parse role - if invalid, default to Member
-    let role = case role.from_string(role_str) {
-      Ok(role) -> role
-      Error(_) -> role.Member
-    }
-
-    decode.success(members.MemberRecord(
-      membership_num: membership_num,
-      membership_id: membership_id.from_number(membership_num),
-      email_address: email_address,
-      handle: handle,
-      password_hash: password_hash,
-      emergency_contact: emergency_contact,
-      role: role,
-      created_at: created_at,
-      updated_at: updated_at,
-      deleted_at: deleted_at,
-    ))
+  let role = case role.from_string(role_str) {
+    Ok(role) -> role
+    Error(_) -> role.Member
   }
-}
 
-fn hash_password(password: String) -> Result(String, AppError) {
-  case argus.hasher() |> argus.hash(password, argus.gen_salt()) {
-    Ok(hashes) -> Ok(hashes.encoded_hash)
-    Error(err) ->
-      Error(errors.internal_error(
-        "Password hashing failed",
-        "Password hashing failed: " <> string.inspect(err),
-      ))
-  }
-}
-
-fn verify_password(encoded_hash: String, password: String) -> Bool {
-  case argus.verify(encoded_hash, password) {
-    Ok(True) -> True
-    _ -> False
-  }
+  decode.success(members.MemberRecord(
+    telegram_id: telegram_id,
+    first_name: first_name,
+    username: username,
+    emergency_contact: emergency_contact,
+    role: role,
+    created_at: created_at,
+    updated_at: updated_at,
+    deleted_at: deleted_at,
+  ))
 }

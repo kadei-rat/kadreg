@@ -9,20 +9,18 @@ pub type Environment {
 
 pub type Config {
   Config(
-    // general config
     kadreg_env: Environment,
     con_name: String,
     base_url: String,
     registration_open: Bool,
-    // database configuration
     db_url: String,
     db_name_suffix: String,
     db_pool_size: Int,
-    // in seconds
     max_db_pool_lifetime: Int,
-    // web server configuration
     server_port: Int,
     secret_key_base: String,
+    telegram_bot_token: String,
+    telegram_bot_username: String,
   )
 }
 
@@ -75,14 +73,25 @@ pub fn load() -> Config {
     envoy.get("SECRET_KEY_BASE")
     |> result.unwrap("dev_secret_key")
 
-  // Security check: don't allow production with default secret
+  let telegram_bot_token =
+    envoy.get("TELEGRAM_BOT_TOKEN")
+    |> result.unwrap("")
+
+  let telegram_bot_username =
+    envoy.get("TELEGRAM_BOT_USERNAME")
+    |> result.unwrap("")
+
   case kadreg_env, secret_key_base {
     Prod, "dev_secret_key" ->
       panic as "Cannot use default secret key in production! Set SECRET_KEY_BASE environment variable."
     _, _ -> Nil
   }
 
-  // in integer seconds
+  case kadreg_env, telegram_bot_token {
+    Prod, "" -> panic as "TELEGRAM_BOT_TOKEN must be set in production!"
+    _, _ -> Nil
+  }
+
   let max_db_pool_lifetime =
     envoy.get("MAX_DB_POOL_LIFETIME")
     |> result.try(int.parse)
@@ -99,5 +108,7 @@ pub fn load() -> Config {
     max_db_pool_lifetime: max_db_pool_lifetime,
     server_port: server_port,
     secret_key_base: secret_key_base,
+    telegram_bot_token: telegram_bot_token,
+    telegram_bot_username: telegram_bot_username,
   )
 }

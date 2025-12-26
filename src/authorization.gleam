@@ -1,9 +1,7 @@
 import errors.{type AppError}
-import models/membership_id.{type MembershipId}
 import models/role.{type Role}
 import session.{type SessionData}
 
-// Role hierarchy levels (higher number = more permissions)
 pub fn role_level(role: Role) -> Int {
   case role {
     role.Member -> 1
@@ -14,14 +12,13 @@ pub fn role_level(role: Role) -> Int {
   }
 }
 
-// Check if user can access member details
 pub fn check_manage_member_details(
   session_data: SessionData,
-  desired_membership_id: MembershipId,
+  target_telegram_id: Int,
 ) -> Result(Nil, AppError) {
   case
     role_level(session_data.role) >= role_level(role.RegStaff)
-    || session_data.membership_id == desired_membership_id
+    || session_data.telegram_id == target_telegram_id
   {
     True -> Ok(Nil)
     False ->

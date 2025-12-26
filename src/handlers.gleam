@@ -1,7 +1,6 @@
 import authorization
 import config
 import db_coordinator.{type DbCoordName}
-import email
 import errors
 import frontend/admin_audit
 import frontend/admin_dashboard
@@ -16,9 +15,9 @@ import frontend/edit_membership
 import frontend/layout.{NoTables, Tables}
 import frontend/login_page
 import frontend/register
-import frontend/signup_page
 import frontend/view_membership
 import gleam/http
+import gleam/int
 import gleam/json
 import gleam/option.{type Option, None, Some}
 import gleam/result
@@ -29,12 +28,11 @@ import models/admin_audit_db
 import models/conventions
 import models/members
 import models/members_db
-import models/membership_id
-import models/pending_members_db
 import models/registrations
 import models/registrations_db
 import models/role
 import session
+import telegram_auth
 import utils
 import wisp.{type Request, type Response}
 
@@ -46,7 +44,6 @@ pub fn static(req: Request) -> Response {
   wisp.not_found()
 }
 
-// If logged in the root is the view membership, else it's the login page
 pub fn root_page(req: Request, db: DbCoordName, conf: config.Config) -> Response {
   let query_params = wisp.get_query(req)
   let error_msg = val_from_querystring(query_params, "error")
@@ -55,72 +52,24 @@ pub fn root_page(req: Request, db: DbCoordName, conf: config.Config) -> Response
   case session.get_session(req) {
     Ok(_) -> view_membership(req, db, conf)
     Error(_) ->
-      [login_page.view(error_msg, success_msg)]
+      [login_page.view(conf.telegram_bot_username, error_msg, success_msg)]
       |> layout.view(conf.con_name, NoTables)
       |> element.to_document_string_tree
       |> wisp.html_response(200)
   }
 }
 
-pub fn signup_page(
-  req: Request,
-  _db: DbCoordName,
-  conf: config.Config,
-) -> Response {
-  let query_params = wisp.get_query(req)
-  let error_msg = val_from_querystring(query_params, "error")
-
-  [signup_page.view(error_msg)]
-  |> layout.view(conf.con_name, NoTables)
-  |> element.to_document_string_tree
-  |> wisp.html_response(200)
-}
-
 // API routes
 
-// POST /members (Create a new pending member)
-pub fn create_member(
-  req: Request,
-  db: DbCoordName,
-  conf: config.Config,
-) -> Response {
-  use formdata <- wisp.require_form(req)
-
-  decode_form_create_member_request(formdata.values)
-  |> result.try(members.validate_member_request)
-  |> result.try(pending_members_db.create(db, _))
-  |> result.map(fn(pending_member) {
-    email.send_email_confirmation_email(
-      conf.base_url,
-      pending_member.email_address,
-      pending_member.email_confirm_token,
-    )
-    wisp.redirect(
-      "/?success="
-      <> uri.percent_encode(
-        "Account created! Please check your email to confirm your address.",
-      ),
-    )
-  })
-  |> utils.spy_on_result(log_request("create_member", req, _))
-  |> result.map_error(fn(err) {
-    wisp.redirect(
-      "/signup?error=" <> uri.percent_encode(errors.to_public_string(err)),
-    )
-  })
-  |> result.unwrap_both
-}
-
-// Update a member - POST /members (self-edit)
 pub fn update_member(
   req: Request,
   db: DbCoordName,
-  membership_id_str: String,
+  telegram_id_str: String,
 ) -> Response {
   use session_data <- session.require_session(req)
   use formdata <- wisp.require_form(req)
 
-  membership_id.parse(membership_id_str)
+  parse_telegram_id(telegram_id_str)
   |> result.try(fn(target_id) {
     authorization.check_manage_member_details(session_data, target_id)
     |> result.replace(target_id)
@@ -144,18 +93,16 @@ pub fn update_member(
   |> result.unwrap_both
 }
 
-// POST /members/<membership_id>/delete (Delete a member)
 pub fn delete_member(
   req: Request,
   db: DbCoordName,
-  membership_id_str: String,
+  telegram_id_str: String,
 ) -> Response {
   use session_data <- session.require_session(req)
 
-  // For now, default to not purging PII. (in future need to be optional, in req body or param)
   let purge_pii = False
 
-  membership_id.parse(membership_id_str)
+  parse_telegram_id(telegram_id_str)
   |> result.try(fn(target_id) {
     authorization.check_manage_member_details(session_data, target_id)
     |> result.replace(target_id)
@@ -167,18 +114,28 @@ pub fn delete_member(
   |> result.unwrap_both
 }
 
-// POST /auth/login (Create a session)
-pub fn login(req: Request, db: DbCoordName) -> Response {
-  use formdata <- wisp.require_form(req)
+// GET /auth/telegram_callback - Handle Telegram login widget callback
+pub fn telegram_callback(
+  req: Request,
+  db: DbCoordName,
+  conf: config.Config,
+) -> Response {
+  let query_params = wisp.get_query(req)
 
-  decode_form_login_request(formdata.values)
-  |> result.try(fn(data) {
-    members_db.authenticate(db, data.email_address, data.password)
+  telegram_auth.verify_login(query_params, conf.telegram_bot_token)
+  |> result.try(fn(login_data) {
+    let auth_data =
+      members_db.TelegramAuthData(
+        telegram_id: login_data.id,
+        first_name: login_data.first_name,
+        username: login_data.username,
+      )
+    members_db.upsert_from_telegram(db, auth_data)
   })
-  |> utils.spy_on_result(log_request("login", req, _))
+  |> utils.spy_on_result(log_request("telegram_callback", req, _))
   |> result.map(fn(member) {
     wisp.redirect("/")
-    |> session.create_session(req, member.membership_id, member.role)
+    |> session.create_session(req, member.telegram_id, member.role)
   })
   |> result.map_error(fn(err) {
     wisp.redirect(
@@ -186,6 +143,29 @@ pub fn login(req: Request, db: DbCoordName) -> Response {
     )
   })
   |> result.unwrap_both
+}
+
+// GET /auth/dev_login - Dev-only bypass for local testing
+pub fn dev_login(req: Request, db: DbCoordName, conf: config.Config) -> Response {
+  case conf.kadreg_env {
+    config.Prod ->
+      wisp.response(404)
+      |> wisp.string_body("Not found")
+    config.Dev -> {
+      let auth_data =
+        members_db.TelegramAuthData(
+          telegram_id: 12_345_678,
+          first_name: "Dev User",
+          username: Some("devuser"),
+        )
+      case members_db.upsert_from_telegram(db, auth_data) {
+        Ok(member) ->
+          wisp.redirect("/")
+          |> session.create_session(req, member.telegram_id, member.role)
+        Error(_) -> wisp.redirect("/?error=Dev login failed")
+      }
+    }
+  }
 }
 
 // POST /auth/logout (Destroy session)
@@ -202,38 +182,13 @@ pub fn me(req: Request, _db: DbCoordName) -> Response {
     Ok(session_data) -> {
       let user_json =
         json.object([
-          #(
-            "membership_id",
-            json.string(membership_id.to_string(session_data.membership_id)),
-          ),
+          #("telegram_id", json.int(session_data.telegram_id)),
           #("role", json.string(role.to_string(session_data.role))),
         ])
       wisp.json_response(json.to_string_tree(user_json), 200)
     }
     Error(err) -> errors.error_to_response(err)
   }
-}
-
-// GET /auth/confirm_email (Confirm email and convert pending member to member)
-pub fn confirm_email(req: Request, db: DbCoordName) -> Response {
-  use email <- required_val_from_querystring(req, "email")
-  use token <- required_val_from_querystring(req, "token")
-
-  percent_decode(email)
-  |> result.try(pending_members_db.confirm_and_convert_to_member(db, _, token))
-  |> result.map(fn(_member) {
-    wisp.redirect(
-      "/?success="
-      <> uri.percent_encode("Email confirmed successfully! You can now log in."),
-    )
-  })
-  |> utils.spy_on_result(log_request("confirm_email", req, _))
-  |> result.map_error(fn(err) {
-    wisp.redirect(
-      "/?error=" <> uri.percent_encode(errors.to_public_string(err)),
-    )
-  })
-  |> result.unwrap_both
 }
 
 pub fn view_membership(
@@ -243,7 +198,7 @@ pub fn view_membership(
 ) -> Response {
   use session_data <- session.require_session(req)
 
-  members_db.get(db, session_data.membership_id)
+  members_db.get(db, session_data.telegram_id)
   |> result.map(fn(member) {
     [view_membership.view(member)]
     |> dashboard.view(req.path, authorization.can_access_admin(session_data))
@@ -265,7 +220,7 @@ pub fn edit_membership(
   let query_params = wisp.get_query(req)
   let error_msg = val_from_querystring(query_params, "error")
 
-  members_db.get(db, session_data.membership_id)
+  members_db.get(db, session_data.telegram_id)
   |> result.map(fn(member) {
     [edit_membership.dashboard_edit_page(member, error_msg)]
     |> dashboard.view(req.path, authorization.can_access_admin(session_data))
@@ -333,11 +288,11 @@ pub fn admin_member_view(
   req: Request,
   db: DbCoordName,
   conf: config.Config,
-  membership_id_str: String,
+  telegram_id_str: String,
 ) -> Response {
   use session_data <- session.require_session(req)
 
-  membership_id.parse(membership_id_str)
+  parse_telegram_id(telegram_id_str)
   |> result.try(fn(target_id) {
     authorization.check_manage_member_details(session_data, target_id)
     |> result.replace(target_id)
@@ -359,14 +314,14 @@ pub fn admin_member_edit_page(
   req: Request,
   db: DbCoordName,
   conf: config.Config,
-  membership_id_str: String,
+  telegram_id_str: String,
 ) -> Response {
   use session_data <- session.require_session(req)
 
   let query_params = wisp.get_query(req)
   let error_msg = val_from_querystring(query_params, "error")
 
-  membership_id.parse(membership_id_str)
+  parse_telegram_id(telegram_id_str)
   |> result.try(fn(target_id) {
     authorization.check_manage_member_details(session_data, target_id)
     |> result.replace(target_id)
@@ -388,12 +343,12 @@ pub fn admin_update_member(
   req: Request,
   db: DbCoordName,
   _conf: config.Config,
-  membership_id_str: String,
+  telegram_id_str: String,
 ) -> Response {
   use session_data <- session.require_session(req)
   use formdata <- wisp.require_form(req)
 
-  membership_id.parse(membership_id_str)
+  parse_telegram_id(telegram_id_str)
   |> result.try(fn(target_id) {
     authorization.check_manage_member_details(session_data, target_id)
     |> result.replace(target_id)
@@ -404,21 +359,16 @@ pub fn admin_update_member(
   })
   |> result.try(fn(data) {
     let #(target_id, update_req) = data
-    members_db.admin_update(
-      db,
-      session_data.membership_id,
-      target_id,
-      update_req,
-    )
+    members_db.admin_update(db, session_data.telegram_id, target_id, update_req)
   })
   |> result.map(fn(_member) {
-    wisp.redirect("/admin/members/" <> membership_id_str)
+    wisp.redirect("/admin/members/" <> telegram_id_str)
   })
   |> utils.spy_on_result(log_request("admin_update_member", req, _))
   |> result.map_error(fn(err) {
     wisp.redirect(
       "/admin/members/"
-      <> membership_id_str
+      <> telegram_id_str
       <> "/edit?error="
       <> uri.percent_encode(errors.to_public_string(err)),
     )
@@ -476,7 +426,7 @@ pub fn admin_registration_edit_page(
   req: Request,
   db: DbCoordName,
   conf: config.Config,
-  membership_id_str: String,
+  telegram_id_str: String,
 ) -> Response {
   use session_data <- session.require_session(req)
 
@@ -485,10 +435,9 @@ pub fn admin_registration_edit_page(
   let convention = conventions.current_convention
 
   authorization.check_manage_members(session_data)
-  |> result.try(fn(_) { membership_id.parse(membership_id_str) })
-  |> result.try(membership_id.to_number)
-  |> result.try(fn(member_num) {
-    registrations_db.get_with_member(db, member_num, convention.id)
+  |> result.try(fn(_) { parse_telegram_id(telegram_id_str) })
+  |> result.try(fn(member_id) {
+    registrations_db.get_with_member(db, member_id, convention.id)
   })
   |> result.map(fn(reg_with_member) {
     let reg =
@@ -500,14 +449,11 @@ pub fn admin_registration_edit_page(
         created_at: reg_with_member.created_at,
         updated_at: reg_with_member.updated_at,
       )
-    [
-      admin_registration_edit.view(
-        convention,
-        reg,
-        reg_with_member.handle,
-        error_msg,
-      ),
-    ]
+    let display_name = case reg_with_member.username {
+      Some(u) -> u
+      None -> reg_with_member.first_name
+    }
+    [admin_registration_edit.view(convention, reg, display_name, error_msg)]
     |> admin_dashboard.view(req.path)
     |> layout.view(conf.con_name, NoTables)
     |> element.to_document_string_tree
@@ -522,7 +468,7 @@ pub fn admin_update_registration(
   req: Request,
   db: DbCoordName,
   _conf: config.Config,
-  membership_id_str: String,
+  telegram_id_str: String,
 ) -> Response {
   use session_data <- session.require_session(req)
   use formdata <- wisp.require_form(req)
@@ -530,22 +476,21 @@ pub fn admin_update_registration(
   let convention = conventions.current_convention
 
   authorization.check_manage_members(session_data)
-  |> result.try(fn(_) { membership_id.parse(membership_id_str) })
-  |> result.try(membership_id.to_number)
-  |> result.try(fn(member_num) {
+  |> result.try(fn(_) { parse_telegram_id(telegram_id_str) })
+  |> result.try(fn(member_id) {
     use tier_str <- result.try(get_field(formdata.values, "tier"))
     use status_str <- result.try(get_field(formdata.values, "status"))
     use tier <- result.try(registrations.tier_from_string(tier_str))
     use status <- result.try(registrations.status_from_string(status_str))
 
-    registrations_db.admin_update(db, member_num, convention.id, tier, status)
+    registrations_db.admin_update(db, member_id, convention.id, tier, status)
   })
   |> utils.spy_on_result(log_request("admin_update_registration", req, _))
   |> result.map(fn(_) { wisp.redirect("/admin/registrations") })
   |> result.map_error(fn(err) {
     wisp.redirect(
       "/admin/registrations/"
-      <> membership_id_str
+      <> telegram_id_str
       <> "/edit?error="
       <> uri.percent_encode(errors.to_public_string(err)),
     )
@@ -566,21 +511,15 @@ pub fn register_page(
   let error_msg = val_from_querystring(query_params, "error")
   let convention = conventions.current_convention
 
-  membership_id.to_number(session_data.membership_id)
-  |> result.map(fn(membership_num) {
-    let registration =
-      registrations_db.get(db, membership_num, convention.id)
-      |> option.from_result
+  let registration =
+    registrations_db.get(db, session_data.telegram_id, convention.id)
+    |> option.from_result
 
-    [register.view(convention, registration, conf.registration_open, error_msg)]
-    |> dashboard.view(req.path, authorization.can_access_admin(session_data))
-    |> layout.view(conf.con_name, NoTables)
-    |> element.to_document_string_tree
-    |> wisp.html_response(200)
-  })
-  |> utils.spy_on_result(log_request("register_page", req, _))
-  |> result.map_error(errors.error_to_response)
-  |> result.unwrap_both
+  [register.view(convention, registration, conf.registration_open, error_msg)]
+  |> dashboard.view(req.path, authorization.can_access_admin(session_data))
+  |> layout.view(conf.con_name, NoTables)
+  |> element.to_document_string_tree
+  |> wisp.html_response(200)
 }
 
 pub fn create_registration(
@@ -591,14 +530,13 @@ pub fn create_registration(
   use session_data <- session.require_session(req)
   use formdata <- wisp.require_form(req)
 
-  membership_id.to_number(session_data.membership_id)
-  |> result.try(fn(membership_num) {
+  {
     use convention_id <- result.try(get_field(formdata.values, "convention_id"))
     use tier_str <- result.try(get_field(formdata.values, "tier"))
     use tier <- result.try(registrations.tier_from_string(tier_str))
 
-    registrations_db.create(db, membership_num, convention_id, tier)
-  })
+    registrations_db.create(db, session_data.telegram_id, convention_id, tier)
+  }
   |> utils.spy_on_result(log_request("create_registration", req, _))
   |> result.map(fn(_) { wisp.redirect("/register") })
   |> result.map_error(fn(err) {
@@ -618,12 +556,10 @@ pub fn update_registration(
   use session_data <- session.require_session(req)
   use formdata <- wisp.require_form(req)
 
-  membership_id.to_number(session_data.membership_id)
-  |> result.try(fn(membership_num) {
-    // Check that registration exists and can be modified
+  {
     use reg <- result.try(registrations_db.get(
       db,
-      membership_num,
+      session_data.telegram_id,
       convention_id,
     ))
     case registrations.can_user_modify(reg.status) {
@@ -633,14 +569,19 @@ pub fn update_registration(
           <> registrations.status_to_display_string(reg.status)
           <> " state",
         ))
-      True -> Ok(membership_num)
+      True -> Ok(Nil)
     }
-  })
-  |> result.try(fn(membership_num) {
+  }
+  |> result.try(fn(_) {
     use tier_str <- result.try(get_field(formdata.values, "tier"))
     use tier <- result.try(registrations.tier_from_string(tier_str))
 
-    registrations_db.update_tier(db, membership_num, convention_id, tier)
+    registrations_db.update_tier(
+      db,
+      session_data.telegram_id,
+      convention_id,
+      tier,
+    )
   })
   |> utils.spy_on_result(log_request("update_registration", req, _))
   |> result.map(fn(_) { wisp.redirect("/register") })
@@ -660,12 +601,10 @@ pub fn cancel_registration(
 ) -> Response {
   use session_data <- session.require_session(req)
 
-  membership_id.to_number(session_data.membership_id)
-  |> result.try(fn(membership_num) {
-    // Check that registration exists and can be modified
+  {
     use reg <- result.try(registrations_db.get(
       db,
-      membership_num,
+      session_data.telegram_id,
       convention_id,
     ))
     case registrations.can_user_modify(reg.status) {
@@ -675,11 +614,11 @@ pub fn cancel_registration(
           <> registrations.status_to_display_string(reg.status)
           <> " state",
         ))
-      True -> Ok(membership_num)
+      True -> Ok(Nil)
     }
-  })
-  |> result.try(fn(membership_num) {
-    registrations_db.cancel(db, membership_num, convention_id)
+  }
+  |> result.try(fn(_) {
+    registrations_db.cancel(db, session_data.telegram_id, convention_id)
   })
   |> utils.spy_on_result(log_request("cancel_registration", req, _))
   |> result.map(fn(_) { wisp.redirect("/register") })
@@ -712,86 +651,37 @@ fn log_request(
   logging.log(logging.Info, message)
 }
 
-type LoginRequest {
-  LoginRequest(email_address: String, password: String)
-}
-
-fn decode_form_login_request(
-  formdata: List(#(String, String)),
-) -> Result(LoginRequest, errors.AppError) {
-  let get_field = fn(field_name: String) -> Result(String, errors.AppError) {
-    formdata
-    |> utils.find_first(fn(pair) { pair.0 == field_name })
-    |> result.map(fn(pair) { pair.1 })
-    |> result.replace_error(errors.validation_error(
-      "Missing field: " <> field_name,
-      "Field missing from form data: " <> field_name,
-    ))
-  }
-
-  use email_address <- result.try(get_field("email_address"))
-  use password <- result.try(get_field("password"))
-
-  case email_address == "" || password == "" {
-    True ->
-      Error(errors.validation_error(
-        "Email and password cannot be empty",
-        "Empty email or password in login request",
-      ))
-    False -> Ok(LoginRequest(email_address: email_address, password: password))
-  }
-}
-
-fn decode_form_create_member_request(
-  formdata: List(#(String, String)),
-) -> Result(members.CreateMemberRequest, errors.AppError) {
-  use email_address <- result.try(get_field(formdata, "email_address"))
-  use handle <- result.try(get_field(formdata, "handle"))
-  use password <- result.try(get_field(formdata, "password"))
-
-  Ok(members.CreateMemberRequest(
-    email_address: email_address,
-    handle: handle,
-    password: password,
-    role: None,
+fn parse_telegram_id(id_str: String) -> Result(Int, errors.AppError) {
+  int.parse(id_str)
+  |> result.replace_error(errors.validation_error(
+    "Invalid member ID",
+    "Failed to parse telegram_id: " <> id_str,
   ))
 }
 
 fn decode_form_update_member_request(
   formdata: List(#(String, String)),
 ) -> Result(members.UpdateMemberRequest, errors.AppError) {
-  use email_address <- result.try(get_field(formdata, "email_address"))
-  use handle <- result.try(get_field(formdata, "handle"))
-  use current_password <- result.try(get_field(formdata, "current_password"))
-
   let emergency_contact = case get_field(formdata, "emergency_contact") {
     Ok("") -> None
     Ok(contact) -> Some(contact)
     Error(_) -> None
   }
 
-  // New password is optional
-  let new_password = case get_field(formdata, "new_password") {
-    Ok("") -> None
-    Ok(password) -> Some(password)
-    Error(_) -> None
-  }
-
-  Ok(members.UpdateMemberRequest(
-    email_address: email_address,
-    handle: handle,
-    emergency_contact: emergency_contact,
-    current_password: current_password,
-    new_password: new_password,
-  ))
+  Ok(members.UpdateMemberRequest(emergency_contact: emergency_contact))
 }
 
 fn decode_form_admin_update_member_request(
   formdata: List(#(String, String)),
 ) -> Result(members.AdminUpdateMemberRequest, errors.AppError) {
-  use email_address <- result.try(get_field(formdata, "email_address"))
-  use handle <- result.try(get_field(formdata, "handle"))
+  use first_name <- result.try(get_field(formdata, "first_name"))
   use role_str <- result.try(get_field(formdata, "role"))
+
+  let username = case get_field(formdata, "username") {
+    Ok("") -> None
+    Ok(u) -> Some(u)
+    Error(_) -> None
+  }
 
   let emergency_contact = case get_field(formdata, "emergency_contact") {
     Ok("") -> None
@@ -802,8 +692,8 @@ fn decode_form_admin_update_member_request(
   use role <- result.try(role.from_string(role_str))
 
   Ok(members.AdminUpdateMemberRequest(
-    email_address: email_address,
-    handle: handle,
+    first_name: first_name,
+    username: username,
     emergency_contact: emergency_contact,
     role: role,
   ))
@@ -817,35 +707,6 @@ fn val_from_querystring(
     Ok(#(_, msg)) -> Some(msg)
     Error(_) -> None
   }
-}
-
-fn required_val_from_querystring(
-  req: Request,
-  key: String,
-  next: fn(String) -> Response,
-) -> Response {
-  let query_params = wisp.get_query(req)
-  case query_params |> utils.find_first(fn(pair) { pair.0 == key }) {
-    Ok(#(_, msg)) -> next(msg)
-    Error(_) -> {
-      log_request(
-        req.path,
-        req,
-        Error(errors.validation_error("", "Missing query parameter: " <> key)),
-      )
-      wisp.redirect(
-        "/?error=" <> uri.percent_encode("Missing query parameter: " <> key),
-      )
-    }
-  }
-}
-
-fn percent_decode(val: String) -> Result(String, errors.AppError) {
-  uri.percent_decode(val)
-  |> result.replace_error(errors.validation_error(
-    "Malformed percent-encoded value",
-    "Failed to percent-decode value: " <> val,
-  ))
 }
 
 fn get_field(

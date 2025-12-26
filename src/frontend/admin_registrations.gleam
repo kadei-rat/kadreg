@@ -1,10 +1,11 @@
 import frontend/shared_helpers
+import gleam/int
 import gleam/list
+import gleam/option.{None, Some}
 import lustre/attribute
 import lustre/element.{type Element}
 import lustre/element/html
 import models/conventions.{type Convention}
-import models/membership_id
 import models/registrations.{type RegistrationWithMember}
 
 pub fn view(
@@ -43,8 +44,8 @@ fn registrations_table(regs: List(RegistrationWithMember)) -> Element(t) {
         [
           html.thead([], [
             html.tr([], [
-              html.th([attribute.class("sortable")], [html.text("ID")]),
-              html.th([attribute.class("sortable")], [html.text("Handle")]),
+              html.th([attribute.class("sortable")], [html.text("Name")]),
+              html.th([attribute.class("sortable")], [html.text("Username")]),
               html.th([attribute.class("sortable")], [html.text("Tier")]),
               html.th([attribute.class("sortable")], [html.text("Status")]),
               html.th([attribute.class("sortable")], [html.text("Registered")]),
@@ -58,14 +59,18 @@ fn registrations_table(regs: List(RegistrationWithMember)) -> Element(t) {
 }
 
 fn registration_row(reg: RegistrationWithMember) -> Element(t) {
-  let member_id_str = membership_id.to_string(reg.membership_id)
+  let telegram_id_str = int.to_string(reg.member_id)
+  let username_display = case reg.username {
+    Some(u) -> "@" <> u
+    None -> "-"
+  }
   let status_class =
     "status-badge status-" <> registrations.status_to_string(reg.status)
   let tier_class = "tier-badge tier-" <> registrations.tier_to_string(reg.tier)
 
   html.tr([], [
-    html.td([], [html.text(member_id_str)]),
-    html.td([], [html.text(reg.handle)]),
+    html.td([], [html.text(reg.first_name)]),
+    html.td([], [html.text(username_display)]),
     html.td([], [
       html.span([attribute.class(tier_class)], [
         html.text(registrations.tier_to_display_string(reg.tier)),
@@ -83,7 +88,7 @@ fn registration_row(reg: RegistrationWithMember) -> Element(t) {
       html.div([attribute.class("action-buttons")], [
         html.a(
           [
-            attribute.href("/admin/members/" <> member_id_str),
+            attribute.href("/admin/members/" <> telegram_id_str),
             attribute.class("action-button action-view"),
             attribute.title("View member"),
           ],
@@ -91,7 +96,9 @@ fn registration_row(reg: RegistrationWithMember) -> Element(t) {
         ),
         html.a(
           [
-            attribute.href("/admin/registrations/" <> member_id_str <> "/edit"),
+            attribute.href(
+              "/admin/registrations/" <> telegram_id_str <> "/edit",
+            ),
             attribute.class("action-button action-edit"),
             attribute.title("Edit registration"),
           ],

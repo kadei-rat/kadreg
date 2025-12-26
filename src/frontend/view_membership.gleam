@@ -1,17 +1,19 @@
 import frontend/shared_helpers
+import gleam/int
 import gleam/option
 import lustre/attribute
 import lustre/element.{type Element}
 import lustre/element/html
 import models/members.{type MemberRecord}
-import models/membership_id
 import models/role
 
 pub fn view(member: MemberRecord) -> Element(t) {
-  let member_id_str = membership_id.to_string(member.membership_id)
+  let username_display = case member.username {
+    option.Some(u) -> "@" <> u
+    option.None -> "(not set)"
+  }
 
   html.div([], [
-    // Member details
     html.div([attribute.class("card")], [
       html.div([attribute.class("card-header")], [
         html.h2([attribute.class("card-title")], [
@@ -19,17 +21,18 @@ pub fn view(member: MemberRecord) -> Element(t) {
         ]),
       ]),
       html.div([attribute.class("member-details-grid")], [
-        detail_section("Basic Information", [
-          detail_item("Membership ID", member_id_str),
-          detail_item("Handle", member.handle),
-          detail_item("Email", member.email_address),
+        detail_section("Telegram Account", [
+          detail_item("Name", member.first_name),
+          detail_item("Username", username_display),
+          detail_item("Telegram ID", int.to_string(member.telegram_id)),
+        ]),
+        detail_section("Membership Information", [
           detail_item("Role", role.to_string(member.role)),
           detail_item(
             "Emergency Contact",
             member.emergency_contact |> option.unwrap("(not set)"),
           ),
         ]),
-
         detail_section("Account Information", [
           detail_item(
             "Member Since",

@@ -1,10 +1,10 @@
 import frontend/shared_helpers
+import gleam/int
 import gleam/list
 import lustre/attribute
 import lustre/element.{type Element}
 import lustre/element/html
 import models/admin_audit.{type AuditLogEntry}
-import models/membership_id
 
 pub fn view(audit_entries: List(AuditLogEntry)) -> Element(t) {
   html.div([], [
@@ -40,8 +40,8 @@ fn audit_table(entries: List(AuditLogEntry)) -> Element(t) {
 }
 
 fn audit_row(entry: AuditLogEntry) -> Element(t) {
-  let performed_by_str = membership_id.to_string(entry.performed_by)
-  let target_member_str = membership_id.to_string(entry.target_member)
+  let performed_by_str = int.to_string(entry.performed_by)
+  let target_member_str = int.to_string(entry.target_member)
 
   let action_text = case entry.action_type {
     admin_audit.UpdateMember -> "Updated member"

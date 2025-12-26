@@ -1,11 +1,12 @@
 import frontend/shared_helpers
 import gleam/dict.{type Dict}
+import gleam/int
 import gleam/list
+import gleam/option.{None, Some}
 import lustre/attribute
 import lustre/element.{type Element}
 import lustre/element/html
 import models/members.{type MemberRecord}
-import models/membership_id
 import models/registrations.{type RegistrationStatus}
 import models/role
 
@@ -14,13 +15,10 @@ pub fn view(
   reg_statuses: Dict(Int, RegistrationStatus),
 ) -> Element(t) {
   html.div([], [
-    // Page header
     html.div([attribute.class("card")], [
       html.div([attribute.class("card-header")], [
         html.h1([attribute.class("card-title")], [html.text("Members")]),
       ]),
-
-      // Search and filters (placeholder for now)
       html.div([attribute.class("members-filters")], [
         html.input([
           attribute.type_("search"),
@@ -47,9 +45,8 @@ fn members_table(
       html.table([attribute.class("table"), attribute.id("members-table")], [
         html.thead([], [
           html.tr([], [
-            html.th([attribute.class("sortable")], [html.text("ID")]),
-            html.th([attribute.class("sortable")], [html.text("Handle")]),
-            html.th([attribute.class("sortable")], [html.text("Email")]),
+            html.th([attribute.class("sortable")], [html.text("Name")]),
+            html.th([attribute.class("sortable")], [html.text("Username")]),
             html.th([attribute.class("sortable")], [html.text("Role")]),
             html.th([attribute.class("sortable")], [html.text("Reg Status")]),
             html.th([attribute.class("sortable")], [html.text("Joined")]),
@@ -65,9 +62,13 @@ fn member_row(
   member: MemberRecord,
   reg_statuses: Dict(Int, RegistrationStatus),
 ) -> Element(t) {
-  let member_id_str = membership_id.to_string(member.membership_id)
+  let telegram_id_str = int.to_string(member.telegram_id)
+  let username_display = case member.username {
+    Some(u) -> "@" <> u
+    None -> "-"
+  }
 
-  let reg_status_cell = case dict.get(reg_statuses, member.membership_num) {
+  let reg_status_cell = case dict.get(reg_statuses, member.telegram_id) {
     Ok(status) -> {
       let status_class =
         "status-badge status-" <> registrations.status_to_string(status)
@@ -79,9 +80,8 @@ fn member_row(
   }
 
   html.tr([], [
-    html.td([], [html.text(member_id_str)]),
-    html.td([], [html.text(member.handle)]),
-    html.td([], [html.text(member.email_address)]),
+    html.td([], [html.text(member.first_name)]),
+    html.td([], [html.text(username_display)]),
     html.td([], [
       html.span(
         [attribute.class("role-badge role-" <> role.to_string(member.role))],
@@ -96,7 +96,7 @@ fn member_row(
       html.div([attribute.class("action-buttons")], [
         html.a(
           [
-            attribute.href("/admin/members/" <> member_id_str),
+            attribute.href("/admin/members/" <> telegram_id_str),
             attribute.class("action-button action-view"),
             attribute.title("View member details"),
           ],
@@ -104,7 +104,7 @@ fn member_row(
         ),
         html.a(
           [
-            attribute.href("/admin/members/" <> member_id_str <> "/edit"),
+            attribute.href("/admin/members/" <> telegram_id_str <> "/edit"),
             attribute.class("action-button action-edit"),
             attribute.title("Edit member"),
           ],

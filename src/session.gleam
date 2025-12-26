@@ -1,11 +1,11 @@
 import errors.{type AppError}
+import gleam/int
 import gleam/string
-import models/membership_id.{type MembershipId}
 import models/role.{type Role}
 import wisp.{type Request, type Response}
 
 pub type SessionData {
-  SessionData(membership_id: MembershipId, role: Role)
+  SessionData(telegram_id: Int, role: Role)
 }
 
 const session_cookie_name = "kadreg_session"
@@ -15,11 +15,10 @@ const session_duration = 86_400
 pub fn create_session(
   response: Response,
   request: Request,
-  membership_id: MembershipId,
+  telegram_id: Int,
   role: Role,
 ) -> Response {
-  let session_value =
-    membership_id.to_string(membership_id) <> ":" <> role.to_string(role)
+  let session_value = int.to_string(telegram_id) <> ":" <> role.to_string(role)
   wisp.set_cookie(
     response,
     request,
@@ -56,9 +55,9 @@ pub fn require_session(
 
 fn parse_session_value(session_value: String) -> Result(SessionData, AppError) {
   case string.split_once(session_value, ":") {
-    Ok(#(membership_id_str, role_str)) -> {
-      case membership_id.parse(membership_id_str), role.from_string(role_str) {
-        Ok(membership_id), Ok(role) -> Ok(SessionData(membership_id, role))
+    Ok(#(telegram_id_str, role_str)) -> {
+      case int.parse(telegram_id_str), role.from_string(role_str) {
+        Ok(telegram_id), Ok(role) -> Ok(SessionData(telegram_id, role))
         _, _ -> Error(errors.authentication_error("Invalid session format"))
       }
     }

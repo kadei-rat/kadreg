@@ -1,5 +1,5 @@
 import errors.{type AppError}
-import models/membership_id.{type MembershipId}
+import gleam/option.{type Option}
 
 pub type RegistrationTier {
   Standard
@@ -29,8 +29,8 @@ pub type Registration {
 pub type RegistrationWithMember {
   RegistrationWithMember(
     member_id: Int,
-    membership_id: MembershipId,
-    handle: String,
+    first_name: String,
+    username: Option(String),
     convention_id: String,
     tier: RegistrationTier,
     status: RegistrationStatus,

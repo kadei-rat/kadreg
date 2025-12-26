@@ -1,5 +1,3 @@
-import models/membership_id.{type MembershipId}
-
 pub type AdminActionType {
   UpdateMember
   DeleteMember
@@ -23,9 +21,9 @@ pub fn action_type_from_string(s: String) -> Result(AdminActionType, Nil) {
 pub type AuditLogEntry {
   AuditLogEntry(
     audit_id: Int,
-    performed_by: MembershipId,
+    performed_by: Int,
     action_type: AdminActionType,
-    target_member: MembershipId,
+    target_member: Int,
     old_values: String,
     new_values: String,
     performed_at: String,

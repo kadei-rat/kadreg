@@ -4,7 +4,6 @@ import lustre/attribute
 import lustre/element.{type Element}
 import lustre/element/html
 import models/conventions.{type Convention}
-import models/membership_id
 import models/registrations.{
   type Registration, type RegistrationStatus, type RegistrationTier,
 }
@@ -12,11 +11,10 @@ import models/registrations.{
 pub fn view(
   convention: Convention,
   registration: Registration,
-  handle: String,
+  display_name: String,
   error: Option(String),
 ) -> Element(t) {
-  let member_id_str =
-    membership_id.to_string(membership_id.from_number(registration.member_id))
+  let telegram_id_str = int.to_string(registration.member_id)
 
   html.div([], [
     html.div([attribute.class("card")], [
@@ -30,7 +28,7 @@ pub fn view(
             [html.text("← Back to Registrations")],
           ),
           html.h1([attribute.class("card-title")], [
-            html.text("Edit Registration: " <> handle),
+            html.text("Edit Registration: " <> display_name),
           ]),
         ]),
       ]),
@@ -44,7 +42,7 @@ pub fn view(
       html.form(
         [
           attribute.method("post"),
-          attribute.action("/admin/registrations/" <> member_id_str),
+          attribute.action("/admin/registrations/" <> telegram_id_str),
           attribute.class("member-edit-form"),
         ],
         [
@@ -53,7 +51,11 @@ pub fn view(
               html.div([attribute.class("readonly-info")], [
                 html.p([], [
                   html.strong([], [html.text("Member: ")]),
-                  html.text(handle <> " (" <> member_id_str <> ")"),
+                  html.text(display_name),
+                ]),
+                html.p([], [
+                  html.strong([], [html.text("Telegram ID: ")]),
+                  html.text(telegram_id_str),
                 ]),
                 html.p([], [
                   html.strong([], [html.text("Convention: ")]),

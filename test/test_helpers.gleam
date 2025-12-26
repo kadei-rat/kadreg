@@ -2,6 +2,7 @@ import config
 import db_coordinator
 import errors.{type AppError}
 import gleam/erlang/process
+import gleam/int
 import gleam/list
 import gleam/option
 import gleam/result
@@ -9,19 +10,15 @@ import gleam/string
 import global_value
 import models/members
 import models/members_db
-import models/membership_id
 import models/role
 import pog
 import wisp
 import wisp/testing
 
 pub fn setup_test_db() -> Result(db_coordinator.DbCoordName, AppError) {
-  // global_value memoises the db connection. static key, assumes that a given
-  // process will only ever use a single db config.
   use <- global_value.create_with_unique_name("test_db")
 
   let config = config.load()
-  // Use test database name if running in test mode
   let test_config = config.Config(..config, db_name_suffix: "_test")
 
   let db_coord_name = process.new_name(prefix: "test_db_coord")
@@ -37,66 +34,54 @@ pub fn setup_test_db() -> Result(db_coordinator.DbCoordName, AppError) {
 
 pub fn cleanup_test_member(
   db_coord_name: db_coordinator.DbCoordName,
-  email: String,
+  telegram_id: Int,
 ) {
-  // Clean up audit entries first (to avoid FK constraint violations)
   let audit_cleanup_query =
     pog.query(
-      "DELETE FROM admin_audit_log WHERE performed_by IN (SELECT membership_num FROM members WHERE email_address = $1) OR target_member IN (SELECT membership_num FROM members WHERE email_address = $1)",
+      "DELETE FROM admin_audit_log WHERE performed_by = $1 OR target_member = $1",
     )
-    |> pog.parameter(pog.text(email))
+    |> pog.parameter(pog.int(telegram_id))
 
   use _ <- result.try(db_coordinator.noresult_query(
     audit_cleanup_query,
     db_coord_name,
   ))
 
-  // Clean up member
   let query_mem =
-    pog.query("DELETE FROM members WHERE email_address = $1")
-    |> pog.parameter(pog.text(email))
+    pog.query("DELETE FROM members WHERE telegram_id = $1")
+    |> pog.parameter(pog.int(telegram_id))
 
-  let query_pendingmem =
-    pog.query("DELETE FROM pending_members WHERE email_address = $1")
-    |> pog.parameter(pog.text(email))
-
-  result.all([
-    db_coordinator.noresult_query(query_mem, db_coord_name),
-    db_coordinator.noresult_query(query_pendingmem, db_coord_name),
-  ])
+  db_coordinator.noresult_query(query_mem, db_coord_name)
 }
 
 pub fn create_test_member(
   db_coord_name: db_coordinator.DbCoordName,
-  email: String,
-  password: String,
+  telegram_id: Int,
+  first_name: String,
 ) -> Result(members.MemberRecord, String) {
   create_test_member_with_details(
     db_coord_name,
-    email,
-    password,
-    "Test User",
-    "testuser",
+    telegram_id,
+    first_name,
+    option.None,
     role.Member,
   )
 }
 
 pub fn create_test_member_with_details(
   db_coord_name: db_coordinator.DbCoordName,
-  email: String,
-  password: String,
-  _legal_name: String,
-  handle: String,
-  member_role: role.Role,
+  telegram_id: Int,
+  first_name: String,
+  username: option.Option(String),
+  _member_role: role.Role,
 ) -> Result(members.MemberRecord, String) {
-  let request =
-    members.CreateMemberRequest(
-      email_address: email,
-      handle: handle,
-      password: password,
-      role: option.Some(member_role),
+  let auth_data =
+    members_db.TelegramAuthData(
+      telegram_id: telegram_id,
+      first_name: first_name,
+      username: username,
     )
-  members_db.create(db_coord_name, request)
+  members_db.upsert_from_telegram(db_coord_name, auth_data)
   |> result.map_error(fn(_) { "Test member creation failed" })
 }
 
@@ -105,9 +90,7 @@ pub fn set_session_cookie(
   member: members.MemberRecord,
 ) -> wisp.Request {
   let session_value =
-    membership_id.to_string(member.membership_id)
-    <> ":"
-    <> role.to_string(member.role)
+    int.to_string(member.telegram_id) <> ":" <> role.to_string(member.role)
   testing.set_cookie(request, "kadreg_session", session_value, wisp.Signed)
 }
 
@@ -126,40 +109,20 @@ pub fn get_location_header(response: wisp.Response) -> String {
   }
 }
 
-pub fn member_form_data(
-  email: String,
-  _name: String,
-  handle: String,
-) -> List(#(String, String)) {
-  [
-    #("email_address", email),
-    #("handle", handle),
-    #("password", "testpass123456"),
-  ]
-}
-
-pub fn update_form_data(
-  email: String,
-  _name: String,
-  handle: String,
-) -> List(#(String, String)) {
-  [
-    #("email_address", email),
-    #("handle", handle),
-    #("emergency_contact", ""),
-  ]
+pub fn update_form_data(emergency_contact: String) -> List(#(String, String)) {
+  [#("emergency_contact", emergency_contact)]
 }
 
 pub fn admin_update_form_data(
-  email: String,
-  _name: String,
-  handle: String,
+  first_name: String,
+  username: String,
+  emergency_contact: String,
   role: String,
 ) -> List(#(String, String)) {
   [
-    #("email_address", email),
-    #("handle", handle),
-    #("emergency_contact", ""),
+    #("first_name", first_name),
+    #("username", username),
+    #("emergency_contact", emergency_contact),
     #("role", role),
   ]
 }

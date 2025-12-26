@@ -3,8 +3,8 @@ import errors.{type AppError}
 import gleam/dict.{type Dict}
 import gleam/dynamic/decode
 import gleam/list
+import gleam/option.{None}
 import gleam/result
-import models/membership_id
 import models/registrations.{
   type Registration, type RegistrationStatus, type RegistrationTier,
   type RegistrationWithMember, Registration, RegistrationWithMember,
@@ -84,10 +84,10 @@ pub fn list_for_convention_with_members(
 ) -> Result(List(RegistrationWithMember), AppError) {
   let sql =
     "
-    SELECT r.member_id, m.membership_num, m.handle, r.convention_id,
+    SELECT r.member_id, m.first_name, m.username, r.convention_id,
            r.tier, r.status, r.created_at::text, r.updated_at::text
     FROM registrations r
-    JOIN members m ON r.member_id = m.membership_num
+    JOIN members m ON r.member_id = m.telegram_id
     WHERE r.convention_id = $1 AND m.deleted_at IS NULL
     ORDER BY r.created_at DESC
   "
@@ -109,10 +109,10 @@ pub fn get_with_member(
 ) -> Result(RegistrationWithMember, AppError) {
   let sql =
     "
-    SELECT r.member_id, m.membership_num, m.handle, r.convention_id,
+    SELECT r.member_id, m.first_name, m.username, r.convention_id,
            r.tier, r.status, r.created_at::text, r.updated_at::text
     FROM registrations r
-    JOIN members m ON r.member_id = m.membership_num
+    JOIN members m ON r.member_id = m.telegram_id
     WHERE r.member_id = $1 AND r.convention_id = $2 AND m.deleted_at IS NULL
   "
 
@@ -318,8 +318,12 @@ fn decode_registration() -> decode.Decoder(Registration) {
 
 fn decode_registration_with_member() -> decode.Decoder(RegistrationWithMember) {
   use member_id <- decode.field("member_id", decode.int)
-  use membership_num <- decode.field("membership_num", decode.int)
-  use handle <- decode.field("handle", decode.string)
+  use first_name <- decode.field("first_name", decode.string)
+  use username <- decode.optional_field(
+    "username",
+    None,
+    decode.optional(decode.string),
+  )
   use convention_id <- decode.field("convention_id", decode.string)
   use tier_str <- decode.field("tier", decode.string)
   use status_str <- decode.field("status", decode.string)
@@ -338,8 +342,8 @@ fn decode_registration_with_member() -> decode.Decoder(RegistrationWithMember) {
 
   decode.success(RegistrationWithMember(
     member_id: member_id,
-    membership_id: membership_id.from_number(membership_num),
-    handle: handle,
+    first_name: first_name,
+    username: username,
     convention_id: convention_id,
     tier: tier,
     status: status,

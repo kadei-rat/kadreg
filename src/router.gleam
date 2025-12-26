@@ -17,7 +17,6 @@ pub fn handle_request(
 
     // html
     [], Get -> handlers.root_page(req, db, conf)
-    ["signup"], Get -> handlers.signup_page(req, db, conf)
     ["membership", "edit"], Get -> handlers.edit_membership(req, db, conf)
     ["register"], Get -> handlers.register_page(req, db, conf)
 
@@ -27,27 +26,29 @@ pub fn handle_request(
     ["admin", "members"], Get -> handlers.admin_members_list(req, db, conf)
     ["admin", "registrations"], Get ->
       handlers.admin_registrations_list(req, db, conf)
-    ["admin", "registrations", membership_id, "edit"], Get ->
-      handlers.admin_registration_edit_page(req, db, conf, membership_id)
-    ["admin", "members", membership_id], Get ->
-      handlers.admin_member_view(req, db, conf, membership_id)
-    ["admin", "members", membership_id, "edit"], Get ->
-      handlers.admin_member_edit_page(req, db, conf, membership_id)
+    ["admin", "registrations", telegram_id, "edit"], Get ->
+      handlers.admin_registration_edit_page(req, db, conf, telegram_id)
+    ["admin", "members", telegram_id], Get ->
+      handlers.admin_member_view(req, db, conf, telegram_id)
+    ["admin", "members", telegram_id, "edit"], Get ->
+      handlers.admin_member_edit_page(req, db, conf, telegram_id)
 
-    // api
-    ["auth", "login"], Post -> handlers.login(req, db)
+    // auth api
+    ["auth", "telegram_callback"], Get ->
+      handlers.telegram_callback(req, db, conf)
+    ["auth", "dev_login"], Get -> handlers.dev_login(req, db, conf)
     ["auth", "logout"], Post -> handlers.logout(req, db)
     ["auth", "me"], Get -> handlers.me(req, db)
-    ["auth", "confirm_email"], Get -> handlers.confirm_email(req, db)
-    ["members"], Post -> handlers.create_member(req, db, conf)
-    ["members", membership_id], Post ->
-      handlers.update_member(req, db, membership_id)
-    ["members", membership_id, "delete"], Post ->
-      handlers.delete_member(req, db, membership_id)
-    ["admin", "members", membership_id], Post ->
-      handlers.admin_update_member(req, db, conf, membership_id)
-    ["admin", "registrations", membership_id], Post ->
-      handlers.admin_update_registration(req, db, conf, membership_id)
+
+    // member api
+    ["members", telegram_id], Post ->
+      handlers.update_member(req, db, telegram_id)
+    ["members", telegram_id, "delete"], Post ->
+      handlers.delete_member(req, db, telegram_id)
+    ["admin", "members", telegram_id], Post ->
+      handlers.admin_update_member(req, db, conf, telegram_id)
+    ["admin", "registrations", telegram_id], Post ->
+      handlers.admin_update_registration(req, db, conf, telegram_id)
 
     // registration api
     ["registrations"], Post -> handlers.create_registration(req, db, conf)
